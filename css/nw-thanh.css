@@ -105,23 +105,26 @@ body.mo-menu .side.phai{transform:none}
 /* lưới: cột trái danh mục 228px + dashboard (bỏ max-width/lề của .wrap cũ để dashboard ăn hết phần còn lại) */
 .nwb-ql{max-width:1560px; margin:0 auto; padding:14px 16px 0; display:grid; grid-template-columns:228px minmax(0,1fr); gap:18px; align-items:start}
 .nwb-ql > main.wrap{max-width:none; margin:0; padding:0; min-width:0}
-.nwb-ql-cot{position:sticky; top:76px; background:#fff; border:1px solid var(--line); border-radius:18px; padding:8px; box-shadow:var(--shadow);
-  font-family:var(--sans)}
-.nwb-ql-nhom{font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); font-weight:800; padding:12px 12px 5px}
-.nwb-ql-muc{display:flex; align-items:center; gap:10px; width:100%; padding:9px 12px; border:0; background:none; border-radius:12px;
-  font:700 13.5px/1.3 var(--sans); color:var(--ink); text-align:left; cursor:pointer; transition:background .15s}
-.nwb-ql-muc svg{width:19px; height:19px; flex:none; fill:none; stroke:var(--muted); stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round}
-.nwb-ql-muc:hover{background:var(--ground)}
-.nwb-ql-muc.chon{background:var(--accent-soft); color:var(--accent)}
-.nwb-ql-muc.chon svg{stroke:var(--accent)}
+/* thầy 24/09: kiểu thanh bên Facebook — KHÔNG khung (không nền/viền/bóng), dòng to thoáng, icon màu, vạch mảnh ngăn nhóm */
+.nwb-ql-cot{position:sticky; top:62px; max-height:calc(100dvh - 62px); overflow-y:auto; padding:6px 0 16px; font-family:var(--sans); scrollbar-width:thin}
+.nwb-ql-nhom{font-size:16px; font-weight:600; color:var(--muted); padding:6px 10px 6px}
+.nwb-ql-vach{border:0; border-top:1px solid #D5DEDC; margin:8px 10px}
+.nwb-ql-muc{display:flex; align-items:center; gap:12px; width:100%; padding:8px 10px; border:0; background:none; border-radius:10px;
+  font:600 15px/1.3 var(--sans); color:var(--ink); text-align:left; cursor:pointer; transition:background .15s}
+.nwb-ql-muc svg{width:28px; height:28px; flex:none; fill:none; stroke:var(--muted); stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round}
+.nwb-ql-av{width:36px; height:36px; border-radius:50%; object-fit:cover; flex:none; margin:-4px 0 -4px -4px}
+.nwb-ql-muc:hover{background:rgba(22,35,42,.06)}
+.nwb-ql-muc.chon{background:rgba(14,124,110,.10)}
 /* menu quản lý cũ (.sb-panel) trượt từ PHẢI như myNetwork */
 body.nwb-thay .sb-panel{left:auto; right:0; transform:translateX(100%); box-shadow:-10px 0 34px rgba(16,40,36,.22)}
 body.nwb-thay .sb-panel.mo{transform:translateX(0)}
 /* màn hẹp: cột trái thành dải chip cuộn ngang trên đầu */
 @media (max-width:900px){
   .nwb-ql{grid-template-columns:minmax(0,1fr); gap:12px}
-  .nwb-ql-cot{position:static; display:flex; gap:4px; overflow-x:auto; padding:6px}
-  .nwb-ql-nhom{display:none}
+  .nwb-ql-cot{position:static; display:flex; gap:4px; overflow-x:auto; max-height:none; padding:2px 0 6px}
+  .nwb-ql-nhom,.nwb-ql-vach{display:none}
+  .nwb-ql-muc svg{width:22px; height:22px}
+  .nwb-ql-av{width:28px; height:28px; margin:0}
   .nwb-ql-muc{width:auto; flex:none; white-space:nowrap}
 }
 @media (max-width:640px){ .top.nwb .nwb-av{width:40px; height:40px; box-shadow:none} }

@@ -153,23 +153,26 @@
     tuCam: P2('<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>'),
     lop: P2('<path d="M3 10.8 12 6l9 4.8-9 4.8z"/><path d="M6.5 12.6v4.4c0 1.2 2.5 2.5 5.5 2.5s5.5-1.3 5.5-2.5v-4.4"/><path d="M21 10.8V16"/>')
   };
+  // thầy 24/09: cột trái kiểu Facebook — không khung, dòng đầu = avatar + tên, icon to có MÀU riêng, nhóm ngăn bằng vạch mảnh
   var MUC_QL = [
-    { nhom: 'BÀI TẬP' },
-    { ma: 'baiTap', chu: 'Trang bài tập', ic: IC.baiTap },
-    { nhom: 'NETWORK' },
-    { ma: 'nhom', chu: 'Nhóm chat', ic: ICQ.nhom, mo: 'Lập và quản lý nhóm chat các lớp' },
-    { ma: 'baiDang', chu: 'Bài đăng', ic: IC.bangTin, mo: 'Xem, ẩn, xoá bài đăng của học sinh' },
-    { ma: 'noiBat', chu: 'Nổi bật', ic: ICQ.sao, mo: 'Ghim và sắp xếp bài nổi bật' },
-    { ma: 'suKien', chu: 'Sự kiện & Khám phá', ic: ICQ.suKien, mo: 'Đăng trò chơi, giải đấu, khoá học, thông báo' },
-    { ma: 'baoCao', chu: 'Báo cáo', ic: ICQ.baoCao, mo: 'Xử lý báo cáo vi phạm từ học sinh' },
-    { ma: 'daAn', chu: 'Bài đã ẩn', ic: ICQ.an, mo: 'Xem lại và khôi phục bài đã ẩn' },
-    { ma: 'tuCam', chu: 'Từ cấm', ic: ICQ.tuCam, mo: 'Thêm bớt từ cấm cho cả mạng' },
-    { ma: 'taiKhoan', chu: 'Tài khoản', ic: IC.caNhan, mo: 'Cấp, khoá, đặt lại mật khẩu tài khoản' },
-    { ma: 'lop', chu: 'Lớp', ic: ICQ.lop, mo: 'Xem thành viên từng lớp trên mạng' }
+    { ma: 'caNhan', chu: 'Thầy Andrew', anh: 'assets/avatar-tron.jpg' },
+    { nhom: 'Bài tập', vach: true },
+    { ma: 'baiTap', chu: 'Trang bài tập', ic: IC.baiTap, mau: '#0E7C6E' },
+    { nhom: 'Network', vach: true },
+    { ma: 'nhom', chu: 'Nhóm chat', ic: ICQ.nhom, mau: '#3E7BFA', mo: 'Lập và quản lý nhóm chat các lớp' },
+    { ma: 'baiDang', chu: 'Bài đăng', ic: IC.bangTin, mau: '#18A957', mo: 'Xem, ẩn, xoá bài đăng của học sinh' },
+    { ma: 'noiBat', chu: 'Nổi bật', ic: ICQ.sao, mau: '#E0B411', mo: 'Ghim và sắp xếp bài nổi bật' },
+    { ma: 'suKien', chu: 'Sự kiện & Khám phá', ic: ICQ.suKien, mau: '#F0821E', mo: 'Đăng trò chơi, giải đấu, khoá học, thông báo' },
+    { ma: 'baoCao', chu: 'Báo cáo', ic: ICQ.baoCao, mau: '#E0575B', mo: 'Xử lý báo cáo vi phạm từ học sinh' },
+    { ma: 'daAn', chu: 'Bài đã ẩn', ic: ICQ.an, mau: '#7A8A87', mo: 'Xem lại và khôi phục bài đã ẩn' },
+    { ma: 'tuCam', chu: 'Từ cấm', ic: ICQ.tuCam, mau: '#C2410C', mo: 'Thêm bớt từ cấm cho cả mạng' },
+    { ma: 'taiKhoan', chu: 'Tài khoản', ic: IC.caNhan, mau: '#8B5CF6', mo: 'Cấp, khoá, đặt lại mật khẩu tài khoản' },
+    { ma: 'lop', chu: 'Lớp', ic: ICQ.lop, mau: '#0891B2', mo: 'Xem thành viên từng lớp trên mạng' }
   ];
   cot.innerHTML = MUC_QL.map(function (m) {
-    if (m.nhom) return '<div class="nwb-ql-nhom">' + m.nhom + '</div>';
-    return '<button type="button" class="nwb-ql-muc' + (m.ma === 'baiTap' ? ' chon' : '') + '" data-muc="' + m.ma + '">' + m.ic + '<span>' + m.chu + '</span></button>';
+    if (m.nhom) return (m.vach ? '<hr class="nwb-ql-vach">' : '') + '<div class="nwb-ql-nhom">' + m.nhom + '</div>';
+    var hinh = m.anh ? '<img class="nwb-ql-av" src="' + m.anh + '" alt="">' : m.ic.replace('<svg ', '<svg style="stroke:' + m.mau + '" ');
+    return '<button type="button" class="nwb-ql-muc' + (m.ma === 'baiTap' ? ' chon' : '') + '" data-muc="' + m.ma + '">' + hinh + '<span>' + m.chu + '</span></button>';
   }).join('');
   MUC_QL.forEach(function (m) {
     if (!m.mo) return;
