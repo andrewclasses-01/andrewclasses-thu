@@ -1,8 +1,13 @@
-# andrewclasses-thu — BẢN THỬ andrewclasses.com giao diện myNetwork
+# andrewclasses-thu — TRANG THỬ của andrewclasses.com (giao diện myNetwork)
 
-⚠ Đây là bản THỬ (thầy chốt 24/09/2026), KHÔNG phải trang thật. Học sinh vẫn dùng https://andrewclasses.com (kho myLesson `web`).
+⚠ Đây là trang THỬ, KHÔNG phải trang thật. Học sinh dùng https://andrewclasses.com (kho myLesson `web`).
 
-- Nguồn: bản chép myLesson web HEAD `bd20679` + thanh myNetwork (`css/nw-thanh.css`, `js/nw-thanh.js`) + màn đăng nhập myNetwork (`index.html`, `js/nw-dangnhap.js`, `nw/`).
-- ⛔ KHÔNG có file `CNAME` — cố ý, để không tranh tên miền andrewclasses.com.
+**Quy trình (thầy chốt 24/09/2026):** build các trang myNetwork ở đây, chạy live để thầy thử → thầy chốt "ok" từng chặng → mới đưa chặng đó sang kho `web` thật.
+Hồ sơ đầy đủ: `E:\LAP TRINH APP\myNetwork\BAN GIAO.md` (khối 🚀🚀 24/09).
+
+- Đang khớp trang thật **web v1.140.0** `0f54ab9` (đồng bộ 24/09, `ccbe10a`).
+- ⛔ KHÔNG chứa dữ liệu học sinh: `data/`, `assets/avatar/`, `tools/` bị .gitignore, KHÔNG có `CNAME`.
+  Mọi đường `data/…`, `assets/avatar/…` đã đổi sang `https://andrewclasses.com/…` bằng `thu/doi-duong-du-lieu.py`.
 - ⚠ Dùng CHUNG dữ liệu thật (Firestore `aword-70dae`): làm bài ở đây = ghi thật vào tên em đã đăng nhập.
-- Khi thầy duyệt xong: chuyển các file mới sang kho myLesson `web` (không đưa `CNAME`/README này).
+- Đồng bộ lại từ trang thật: `git archive origin/main` của kho `web` → bỏ `data/ assets/avatar/ tools/ CNAME README.md .gitignore` → chép đè vào đây →
+  `python thu\doi-duong-du-lieu.py` (phải báo 14/6/1/1) → thử cổng 8825 → push.
