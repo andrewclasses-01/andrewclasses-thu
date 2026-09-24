@@ -43,15 +43,44 @@
   sap.className = 'nwb-sap';
   sap.setAttribute('role', 'dialog');
   sap.innerHTML = '<div class="nwb-sap-hop"><div class="nwb-sap-ic"></div><p class="nwb-sap-ten"></p>' +
-    '<p class="nwb-sap-chu">Tính năng sẽ sớm được ra mắt</p><button type="button" class="nwb-sap-nut">ĐÃ HIỂU</button></div>';
+    '<p class="nwb-sap-chu"></p><ul class="nwb-sap-ds"></ul>' +
+    '<div class="nwb-dem"><p class="nwb-dem-nh">RA MẮT SAU</p><div class="nwb-dem-o">' +
+    ['ngay:NGÀY', 'gio:GIỜ', 'phut:PHÚT', 'giay:GIÂY'].map(function (x) { x = x.split(':'); return '<span><b data-o="' + x[0] + '">00</b><i>' + x[1] + '</i></span>'; }).join('') +
+    '</div><p class="nwb-dem-ngay">00:00 · Thứ Năm, 01/10/2026</p></div>' +
+    '<button type="button" class="nwb-sap-nut">EM SẼ CHỜ!</button></div>';
   document.body.appendChild(sap);
+
+  // ⭐ thầy 24/09: mỗi tính năng có lời giới thiệu ngắn, kích thích tò mò + đếm ngược tới 00:00 01/10/2026 (giờ VN).
+  var GIOI_THIEU = {
+    khamPha: { chu: 'Cả thế giới hoạt động của Andrew Classes', ds: ['Trò chơi & giải đấu online — thi tài với bạn khắp các lớp', 'Khoá học mới, chương trình đặc biệt của trung tâm', 'Bảng vàng: xem ai đang dẫn đầu!'] },
+    tinNhan: { chu: 'Nhắn tin riêng với bạn bè và thầy Andrew', ds: ['Chat riêng, chat nhóm cả lớp', 'Thả 7 cảm xúc, trả lời đúng tin nhắn', 'Biết ngay bạn nào đang online'] },
+    bangTin: { chu: 'Nơi cả Andrew Classes cùng khoe và chia sẻ', ds: ['Đăng ảnh, khoe thành tích, kể chuyện lớp mình', 'Thả cảm xúc, bình luận bài của bạn', 'Bài hay nhất được thầy ghim NỔI BẬT'] },
+    chuong: { chu: 'Không bỏ lỡ bất cứ điều gì', ds: ['Ai vừa thả tim, bình luận bài của em', 'Lời mời kết bạn từ các lớp khác', 'Tin quan trọng từ thầy Andrew'] },
+    timKiem: { chu: 'Tìm mọi người, mọi bài viết chỉ trong một chạm', ds: ['Tìm bạn cũ, bạn mới ở mọi lớp', 'Tìm lại bài đăng, nhóm chat', 'Kết bạn để mở rộng vòng bạn bè'] },
+    caNhan: { chu: 'Trang riêng mang đậm chất của em', ds: ['Ảnh bìa, ảnh đại diện, lời giới thiệu', 'Sở thích và bài viết của riêng em', 'Kết bạn với các bạn ở lớp khác'] },
+    dangKy: { chu: 'Học sinh mới đăng ký học ngay trên web', ds: ['Đăng ký kiểm tra đầu vào', 'Đăng ký học thử', 'Thầy liên hệ lại sớm nhất'] }
+  };
+  var MOC_RA_MAT = Date.parse('2026-10-01T00:00:00+07:00');
+  var nhipDem = null;
+  function hai(n) { return (n < 10 ? '0' : '') + n; }
+  function veDem() {
+    var con = Math.max(0, MOC_RA_MAT - Date.now()), s = Math.floor(con / 1000);
+    var so = { ngay: Math.floor(s / 86400), gio: Math.floor(s % 86400 / 3600), phut: Math.floor(s % 3600 / 60), giay: s % 60 };
+    Object.keys(so).forEach(function (k) { $('[data-o="' + k + '"]', sap).textContent = hai(so[k]); });
+    if (!con) { $('.nwb-dem-nh', sap).textContent = 'ĐÃ ĐẾN GIỜ RA MẮT!'; clearInterval(nhipDem); nhipDem = null; }
+  }
   function moSap(ma) {
+    var g = GIOI_THIEU[ma] || { chu: 'Tính năng sẽ sớm được ra mắt', ds: [] };
     $('.nwb-sap-ic', sap).innerHTML = IC[ma] + '<svg class="lap a" viewBox="0 0 10 10">' + LAP + '</svg><svg class="lap b" viewBox="0 0 10 10">' + LAP + '</svg>';
     $('.nwb-sap-ten', sap).textContent = TEN[ma] || '';
+    $('.nwb-sap-chu', sap).textContent = g.chu;
+    $('.nwb-sap-ds', sap).innerHTML = g.ds.map(function (d) { return '<li>' + d + '</li>'; }).join('');
+    veDem();
+    if (!nhipDem && MOC_RA_MAT > Date.now()) nhipDem = setInterval(veDem, 1000);
     sap.classList.add('mo');
     $('.nwb-sap-nut', sap).focus({ preventScroll: true });
   }
-  function dongSap() { sap.classList.remove('mo'); }
+  function dongSap() { sap.classList.remove('mo'); clearInterval(nhipDem); nhipDem = null; }
   sap.onclick = function (e) { if (e.target === sap) dongSap(); };
   $('.nwb-sap-nut', sap).onclick = dongSap;
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') dongSap(); });
