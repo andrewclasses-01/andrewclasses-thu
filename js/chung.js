@@ -1,0 +1,3241 @@
+/* ============================================================
+   chung.js — PHẦN DÙNG CHUNG CHO MỌI TRANG CỦA HỌC SINH (web v1.9.0)
+
+   Web myLesson từ v1.9.0 là NHIỀU TRANG chứ không còn một trang duy nhất:
+
+     index.html   — đăng nhập (mã học sinh · mã quản lý)
+     lop.html     — trang chính của lớp: các thẻ bài tập
+     bai.html     — một bài tập (dùng chung cho WORDS · DICTS · READING)
+     bai-sp.html  — bài SPEAKING SLIDE (Canva + danh sách nộp video)
+     dashboard.html — trang quản lý của thầy (đang dựng)
+
+   Mọi trang đều cần đúng ba thứ: EM ĐANG ĐĂNG NHẬP LÀ AI · DỮ LIỆU LỚP/BÀI ·
+   ĐIỂM BÊN AWORD. Gom hết vào đây để sửa một chỗ là cả bộ đi theo.
+
+   ⛔ Viết kiểu ES5 (var, function, không dùng => hay class) — GIỐNG HỆT mọi
+   file mẫu, vì máy học sinh có cả iPad đời cũ.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var CFG = window.MYLESSON_CONFIG || {};
+  var KHOA_EM = 'mylesson_hs';       // nhớ em đã đăng nhập, ngay trên máy em
+
+  // ---------- tiện ích chữ ----------
+
+  function chuAnToan(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // Chuẩn hoá MÃ: bỏ mọi khoảng trắng + viết hoa.
+  // ⛔ PHẢI giống hệt `chuan_hoa_ma()` bên myStudent — nơi thầy gõ mã cho từng
+  // em — và giống hàm cùng tên trong bản web cũ, không thì em gõ đúng mã vẫn
+  // bị báo sai.
+  function chuanMa(s) {
+    return String(s || '').replace(/\s+/g, '').toUpperCase();
+  }
+
+  // Khoá so tên: dùng để ghép tên em bên AWord với tên trong danh sách lớp.
+  //
+  // ⛔ PHẢI BỎ DẤU. Đã đo thật trên kho điểm AWord (23/08/2026): các lượt nộp
+  // đang lưu tên kiểu "Bao Chau" · "Trang Anh" — không dấu, viết hoa chữ đầu —
+  // vì em tự gõ tên ở màn Start của AWord. Trong khi myStudent ghi "BẢO CHÂU".
+  // So thẳng là TRƯỢT, mà trượt ở đây không chỉ sai bảng xếp hạng: trang lớp
+  // đếm "ai chưa nộp bài" bằng chính phép so này ⇒ em làm rồi vẫn bị bêu tên.
+  // ⛔ CỐ Ý KHÔNG dùng regex ở khâu bỏ dấu, mà lọc theo MÃ SỐ ký tự
+  // (0x300-0x36F là dải dấu thanh). Viết dải đó vào regex là phải gõ ký tự dấu
+  // vào mã nguồn, mà mọi công cụ sửa file đều tự chuẩn hoá Unicode ⇒ hàm hỏng
+  // lặng lẽ, không báo lỗi gì. Đã vấp đúng bẫy này ngay trong phiên 23/08.
+  function chuanTen(t) {
+    var d = String(t || '').normalize('NFD'), ra = '';
+    for (var i = 0; i < d.length; i++) {
+      var c = d.charCodeAt(i);
+      if (c >= 0x300 && c <= 0x36F) continue;      // 0300-036F = dải dấu thanh
+      ra += (c === 0x111 || c === 0x110) ? 'd' : d.charAt(i);   // đ / Đ -> d
+    }
+    return ra.trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  /* ⭐⭐ v1.134.0 (22/09/2026, thầy chốt "bịt kín 4 việc, không ID lớp") — KHOÁ EM THEO MÃ + TÊN CŨ.
+     Điểm AWord (`assignments/<act>/scores`), lượt luyện (`practiceLog`), danh sách "em chưa xong chặng"
+     và `boQua` của STAGE đều ghi theo TÊN. Thầy đổi tên em bên myStudent (giữ mã) ⇒ trước đây
+     `khoaTen('MINH THƯ') !== khoaTen('THƯ')` ⇒ điểm cũ "mất", thẻ báo chưa làm, STAGE chặn cả
+     lớp chờ em. Nay:
+       · `BANG_EM` dựng từ roster lúc `napDuLieu()` (`datBangEm`): tên hiện tại + MỌI tên cũ
+         (`hocSinh[].tenCu`, myStudent ghi lại mỗi lần thầy đổi tên) → MÃ em. Tên nào 2 em
+         khác mã cùng mang (trùng tên trong trung tâm) thì KHÔNG gắn mã — giữ so chữ như cũ.
+       · `khoaTen(tên)` = '#<mã>' khi tên (hoặc tên cũ) tra ra đúng một em, không thì chuỗi
+         chuẩn hoá như cũ ⇒ 40+ chỗ so tên trên 5 trang tự khớp tên cũ ↔ tên mới, không sửa từng chỗ.
+       · `khoaEm(bản ghi)` cho dòng điểm/lượt luyện: có `ma` (AWord ghi từ Đợt 367, web gửi `&ma=`)
+         và mã đó là em có tên duy nhất ⇒ '#<mã>' ngay, không cần tên; không thì lùi về `khoaTen`.
+         Hai vế luôn qua CÙNG một luật nên "bằng nhau" được giữ (tên trùng ⇒ cả hai vế đều là chữ).
+     ⛔ Chỉ tra tên CHÍNH XÁC sau chuẩn hoá — KHÔNG so lỏng kiểu đuôi tên (bẫy 12/09: "HẢI" là
+     đuôi của "NGUYỄN HẢI" phụ huynh ⇒ gắn nhầm; xem [[bay-neo-vao-ten]]).
+     ⛔ `lopHien()` (tên lớp hiển thị) dùng `chuanTen` thuần — không phải tên em. */
+  var BANG_EM = { ten: {}, mo: {} };   // ten[tên chuẩn] = mã ('' = trùng tên) · mo[mã] = tên hiện tại duy nhất
+  function datBangEm(dl) {
+    var ten = {}, dem = {}, tenHien = {};
+    var hs = [];
+    ['lop', 'khoa'].forEach(function (k) {
+      ((dl && dl[k]) || []).forEach(function (l) { hs = hs.concat((l && l.hocSinh) || []); });
+    });
+    hs.forEach(function (h) {
+      var ma = String((h && h.ma) || '').trim(), k = chuanTen(h && h.ten);
+      if (!ma || !k) return;
+      if (!dem[k]) dem[k] = {};
+      dem[k][ma] = 1; tenHien[k] = 1;
+    });
+    Object.keys(dem).forEach(function (k) {
+      var cac = Object.keys(dem[k]);
+      ten[k] = cac.length === 1 ? cac[0] : '';
+    });
+    hs.forEach(function (h) {
+      var ma = String((h && h.ma) || '').trim();
+      if (!ma) return;
+      ((h && h.tenCu) || []).forEach(function (t) {
+        var k = chuanTen(t);
+        if (!k || tenHien[k]) return;            // tên cũ trùng tên hiện tại của ai đó ⇒ không gắn
+        if (ten[k] == null) ten[k] = ma;
+        else if (ten[k] !== ma) ten[k] = '';     // hai em từng cùng mang tên này ⇒ mập mờ
+      });
+    });
+    var mo = {};
+    Object.keys(ten).forEach(function (k) { if (ten[k] && tenHien[k]) mo[ten[k]] = 1; });
+    BANG_EM = { ten: ten, mo: mo };
+  }
+  function khoaTen(t) {
+    var k = chuanTen(t);
+    var ma = k && BANG_EM.ten[k];
+    return ma ? '#' + ma : k;
+  }
+  function khoaEm(x) {
+    if (!x || typeof x !== 'object') return khoaTen(x);
+    var ma = String(x.ma || '').trim();
+    if (ma && BANG_EM.mo[ma]) return '#' + ma;
+    return khoaTen(x.ten != null ? x.ten : x.name);
+  }
+
+  // ⭐⭐ v1.64.0 (05/09/2026, thầy chốt) — CHỮ LỚP ĐƯA CHO HỌC SINH XEM.
+  //
+  // Thầy: *"Lớp NỀN TẢNG 4 lại bị ghi là NNTNG4"*. Mã lớp là thứ máy dùng
+  // (khớp `bai.json`, khớp buổi bên mySpeaking, đường dẫn ảnh) — học sinh không
+  // việc gì phải đọc nó. Hàm này là **CỬA DUY NHẤT** đổi mã sang chữ hiện:
+  //
+  //   "B2-B"       -> "B2B"        (mã lớp, giữ y nếp cũ)
+  //   "B1-A (H)"   -> "B1AH"
+  //   "NỀN TẢNG 4" -> "N.TANG 4"   (lớp tên chữ: bỏ dấu, "NỀN " rút thành "N.")
+  //   "BỔ TRỢ"     -> "BO TRO"
+  //
+  // ⛔ ĐỪNG gọi hàm này cho những chỗ MÁY ĐỌC: `lopMa()` bên `lop.html` (mã khớp
+  // buổi speaking), tham số `gv=1&lop=` (xem-như-thầy), đường dẫn ảnh đại diện
+  // (neo theo TÊN GỐC có gạch). Chữ hiện và mã máy đọc từ nay là HAI thứ —
+  // trước v1.64.0 chúng là một biến `LOP_HIEN` duy nhất, đó chính là chỗ vỡ.
+  //
+  // ⚠️ Chuỗi này CÓ đi sang AWord qua `?lop=` — đã kiểm tận `queueAttempt()` bên
+  // AWord: `className` chỉ dùng để IN lên bìa READY + màn kết thúc, KHÔNG hề
+  // được ghi vào kho điểm (bản ghi chỉ có name · score · total · timeMs ·
+  // createdAt). Nên đưa chữ hiện sang là an toàn, và nhờ vậy bìa của chính game
+  // cũng hết in "NNTNG4" (thầy chốt qua AskUserQuestion).
+  //
+  // Cách nhận ra "lớp tên chữ": bỏ dấu xong còn một cụm từ 3 chữ cái trở lên
+  // ("TANG", "TRO"). Mã lớp thì không ("B2B", "A1C", "B1AH" — toàn cụm ngắn).
+  function lopHien(maLop, tenGoc) {
+    var ma = String(maLop || '').trim();
+    var goc = String(tenGoc || '').trim();
+    if (!goc) return ma;
+    var chu = chuanTen(goc).toUpperCase();         // bỏ dấu + gom khoảng trắng (tên LỚP, không qua bảng em)
+    if (!/[A-Z]{3,}/.test(chu)) return ma;         // tên kiểu mã -> dùng mã lớp
+    return chu.replace(/^NEN\s+/, 'N.');           // "NEN TANG 4" -> "N.TANG 4"
+  }
+
+  // ---------- đọc dữ liệu ----------
+
+  var nhoDl = null;
+
+  /* ⭐⭐⭐ v1.119.0 (21/09/2026, thầy chốt "ok build") — KHO WEB TỨC THÌ `lessonWeb`.
+     Vì sao: bài/lớp thầy đẩy chỉ tới học sinh sau khi GitHub Pages DỰNG LẠI trang
+     (đo thật 32 giây → 11 phút). Nay app myLesson (v2.87.0) ghi thêm một BẢN SAO SỐNG
+     lên Firestore: `lessonWeb/lop` (y hệt lop.json) + `lessonWeb/bai_<LỚP>` (bài của
+     MỘT lớp — tách theo lớp vì trần 1 MB/tài liệu). Ruột nằm trong trường chuỗi `json`
+     ⇒ JSON.parse là có đúng vật thể như đọc file.
+     Trang đọc SONG SONG cả hai nguồn và với mỗi thứ LẤY BẢN CÓ `capNhat` MỚI HƠN:
+       · lớp : lop.json  ⟷ lessonWeb/lop
+       · bài : bai.json (mốc chung cả file) ⟷ lessonWeb/bai_<LỚP> (mốc riêng lớp)
+     Firestore hỏng/chưa có ⇒ y như trước v1.119.0 (bản GitHub). GitHub vẫn được app
+     đẩy nhưng chỉ còn là sao lưu + lịch sử.
+     ⛔ Kết quả trả về GIỮ NGUYÊN hình `{lop, khoa, bai}` — không trang nào phải sửa.
+     ⛔ Bài của lớp nào? Trang học sinh chỉ cần MỘT lớp (`doanLop()`: `?lop=` → phiên
+        đã lưu; đoán sai thì tra lại bằng `emDangHoc` rồi xin thêm một lượt); dashboard
+        (`?gv=`/trang quản lý) cần MỌI lớp ⇒ list cả kho (≈11 tài liệu, chỉ thầy).
+     ⛔ KHÔNG đệm sessionStorage hai tài liệu này — mục đích chính là TƯƠI. Chi phí: +2
+        lượt đọc mỗi lần mở trang (nền hiện ~18: lessonHan 15 + lessonNghi 2 + avatar 1). */
+  var KHO_WEB = 'lessonWeb';
+  function gocFs() {
+    var db = CFG.AWORD_DB || {};
+    if (!db.projectId || !db.apiKey) return null;
+    return { u: 'https://firestore.googleapis.com/v1/projects/' + db.projectId
+                + '/databases/(default)/documents/', k: '?key=' + encodeURIComponent(db.apiKey) };
+  }
+  // Ruột một tài liệu lessonWeb (REST) → vật thể JSON, hoặc null khi thiếu/hỏng.
+  function boKhoWeb(d) {
+    try {
+      var f = d && d.fields;
+      var s = f && f.json && f.json.stringValue;
+      if (!s) return null;
+      var o = JSON.parse(s);
+      if (!o || typeof o !== 'object') return null;
+      if (!o.capNhat && f.capNhat && f.capNhat.stringValue) o.capNhat = f.capNhat.stringValue;
+      return o;
+    } catch (e) { return null; }
+  }
+  function docKhoWeb(id) {
+    try {
+      var g = gocFs();
+      if (!g) return Promise.resolve(null);
+      var p = laySom(KHO_WEB + '/' + id) || fetch(g.u + KHO_WEB + '/' + encodeURIComponent(id) + g.k, { cache: 'no-store' });
+      return p.then(function (r) { return r && r.ok ? r.json() : null; })
+              .then(boKhoWeb).catch(function () { return null; });
+    } catch (e) { return Promise.resolve(null); }
+  }
+  // Dashboard: mọi tài liệu bài trong kho (bỏ `lop`).
+  function docMoiBaiKhoWeb() {
+    try {
+      var g = gocFs();
+      if (!g) return Promise.resolve([]);
+      return fetch(g.u + KHO_WEB + g.k + '&pageSize=100', { cache: 'no-store' })
+        .then(function (r) { return r && r.ok ? r.json() : null; })
+        .then(function (j) {
+          var ds = (j && j.documents) || [], ra = [];
+          for (var i = 0; i < ds.length; i++) {
+            var id = String(ds[i].name || '').split('/').pop();
+            if (id.indexOf('bai_') !== 0) continue;
+            var o = boKhoWeb(ds[i]);
+            if (o) ra.push(o);
+          }
+          return ra;
+        }).catch(function () { return []; });
+    } catch (e) { return Promise.resolve([]); }
+  }
+  // Lớp đoán trước khi có dữ liệu (PHẢI y hệt js/som.js): `?lop=` → phiên đã lưu.
+  function doanLop() {
+    try {
+      var q = new URLSearchParams(location.search);
+      var l = q.get('lop') || '';
+      if (!l) { var cu = docNho(); l = (cu && cu.lop) || ''; }
+      return String(l).replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+    } catch (e) { return ''; }
+  }
+  // Chỉ dashboard mới cần MỌI lớp. `?gv=1&lop=…` (thầy xem trang lớp) vẫn là một lớp.
+  function laTrangQuanLy() {
+    try { return /dashboard\.html$/i.test(location.pathname); } catch (e) { return false; }
+  }
+  // Bản nào có `capNhat` mới hơn thì lấy (chuỗi 'YYYY-MM-DD HH:MM:SS' so được thẳng).
+  function moiHon(a, b) {
+    if (!a) return b || null;
+    if (!b) return a;
+    return String(b.capNhat || '') >= String(a.capNhat || '') ? b : a;
+  }
+  // Đè mảng bài của MỘT lớp từ kho lên `dl.bai` khi kho mới hơn mốc chung của bai.json
+  // (hoặc bai.json chưa có lớp đó).
+  function apBaiKho(dl, mocTinh, doc) {
+    if (!doc || !doc.lop || !Array.isArray(doc.bai)) return;
+    if (String(doc.capNhat || '') >= String(mocTinh || '') || !dl.bai[doc.lop]) dl.bai[doc.lop] = doc.bai;
+  }
+  // Tài liệu bài xin sớm ở som.js chỉ dùng được khi đoán ĐÚNG lớp.
+  function baiSomCua(maLop) {
+    try {
+      var s = window.__napSom;
+      if (!s || !s.lessonWebBai || s.lessonWebBaiLop !== maLop) return null;
+      var p = s.lessonWebBai; s.lessonWebBai = null;
+      return p.then(function (r) { return r && r.ok ? r.json() : null; }).then(boKhoWeb).catch(function () { return null; });
+    } catch (e) { return null; }
+  }
+
+  // Đọc lop.json + bai.json. `?t=` + no-store để không dính bản cũ trong máy —
+  // GitHub Pages giữ cache ~10 phút, thiếu chốt này là thầy đẩy bài mới mà học
+  // sinh vẫn thấy bài cũ.
+  function napDuLieu() {
+    if (nhoDl) return nhoDl;
+    // ⭐ v1.20.0 — nạp kèm BẢNG HẠN SỬA (xem `napHanSua`). Để ĐÚNG ửe ĐÂY, cố ý:
+    // cả bốn trang (lớp · bài · bài SP · dashboard) đều vào dữ liệu qua cửa này, nên
+    // cắm một chỗ là trang nào cũng thấy hạn đã sửa mà không phải sửa trang nào.
+    // ⛔ `napHanSua()` TỰ NUỐT mọi lỗi và trả bảng rỗng: mạng hỏng / chưa dán luật
+    // Firestore thì trang phải chạy y như trước v1.20.0 chứ không được trắng bảng.
+    // ⭐ v1.48.0 — nạp kèm kho `lessonNghi` (thẻ "không giao bài"). Cùng lý do
+    // đặt ở đây với `napHanSua()`: mọi trang vào dữ liệu qua đúng cửa này.
+    // ⭐ v1.119.0 — xin thêm 2 nguồn kho web tức thì, song song với 4 lượt cũ.
+    var lopDoan = doanLop();
+    var quanLy = laTrangQuanLy();
+    nhoDl = Promise.all([napJson('data/lop.json'), napJson('data/bai.json'),
+                         napHanSua(), napNghi(),
+                         docKhoWeb('lop'),
+                         quanLy ? docMoiBaiKhoWeb() : (lopDoan ? (baiSomCua(lopDoan) || docKhoWeb('bai_' + lopDoan)) : null)])
+      .then(function (r) {
+        // ⭐ v1.35.0 — kho `lessonHan` nay mang HAI bảng: hạn riêng + trạng thái thẻ.
+        var bang = r[2] || {};
+        HAN_SUA = bang.han || {};
+        TT_THE = bang.tt || {};
+        // ⭐ v1.76.0 — hai bảng của dạng bài STAGE, cùng tài liệu `lessonHan`.
+        BO_QUA = bang.boQua || {};
+        TINH_CA = bang.tinhCa || {};
+        BO_QUA_CHANG = bang.boQuaChang || {};   // v1.137.0
+        MO_CHANG = bang.moChang || {};
+        NGHI = r[3] || {};
+        // ⭐ v1.119.0 — LỚP: bản mới hơn giữa lop.json và lessonWeb/lop.
+        var lopDung = moiHon(r[0], r[4]) || {};
+        datBangEm(lopDung);                          // v1.134.0 — tên (+ tên cũ) → mã, cho khoaTen/khoaEm
+        var baiTinh = r[1] || {};
+        // ⛔ v1.78.0 — PHẢI mang theo `khoa` (khóa học). Hàm này CHÉP LẠI từng trường
+        // chứ không trả nguyên `r[0]`, nên thêm mảng mới ở `lop.json` mà quên dòng này
+        // là nó rơi mất TẠI ĐÂY — mọi hàm tra cứu vẫn đúng mà trang vẫn hỏng, không một
+        // tiếng động (đã mất một lượt kiểm mới tìm ra, 08/09/2026).
+        var dl = { lop: lopDung.lop || [], khoa: lopDung.khoa || [], bai: baiTinh.bai || {} };
+        var mocTinh = baiTinh.capNhat || '';
+        // ⭐ v1.119.0 — BÀI: dashboard đè mọi lớp; trang học sinh đè đúng lớp của em.
+        if (quanLy) {
+          var ds = r[5] || [];
+          for (var i = 0; i < ds.length; i++) apBaiKho(dl, mocTinh, ds[i]);
+          return dl;
+        }
+        var maLop = lopDoan;
+        try { var em = emDangHoc(dl); if (em && em.lop) maLop = em.lop; } catch (e) { /* chưa đăng nhập */ }
+        if (!maLop) return dl;                       // màn đăng nhập: không cần bài
+        if (maLop === lopDoan) { apBaiKho(dl, mocTinh, r[5]); return dl; }
+        // đoán sai lớp (em ở 2 nơi vừa đổi nơi, `?nhu=` không kèm `?lop=`) ⇒ xin thêm 1 lượt
+        return docKhoWeb('bai_' + maLop).then(function (doc) { apBaiKho(dl, mocTinh, doc); return dl; });
+      });
+    return nhoDl;
+  }
+
+  // ---------- ⭐ v1.20.0 — HẠN SỬA RIÊNG TẪNG THẺ ----------
+  //
+  // Thầy chốt 26/08/2026: có hôm đặc biệt cần đổi hạn của MỘT thẻ, không phải
+  // hạn mặc định. Dashboard ghi hạn đó vào kho `lessonHan` trên Firestore; mọi trang
+  // đọc kho đó đè lên `bai.json`.
+  //
+  // ⛔ VÌ SAO KHÔNG GHI THẲNG VÀO `bai.json`: trang này là GitHub Pages tĩnh, không
+  // có cửa ghi nào — muốn đổi file là phải ngồi ở máy có app rồi đẩy lại.
+  //
+  // ⛔ KHOÁ CỦA BẢNG LÀ TRƯỜNG `baiId` TRONG TÀI LIỆU, KHÔNG phải mã tài liệu:
+  // mã bài có thể chứa dấu `/` (lấy từ lesson key thầy gõ) mà Firestore cấm dấu đó
+  // trong mã tài liệu, nên bên ghi phải thay nó đi. Đọc theo mã tài liệu là tra trượt.
+  //
+  // Chuỗi RỖNG = "đã gỡ, về hạn mặc định" — luật kho cấm xoá tài liệu (đúng nếp các
+  // khối cũ), nên gỡ là ghi đè chuỗi rỗng chứ không phải xoá.
+  var HAN_SUA = {};
+
+  // ⭐ v1.35.0 (02/09/2026) — TRẠNG THÁI THẺ, cùng tài liệu `lessonHan`, trường `tt`:
+  //   ''      bình thường
+  //   'an'    ẨN với học sinh (thẻ biến mất ở trang lớp/bài; dashboard vẫn thấy, mờ)
+  //   'khoa'  TẠM KHOÁ (thẻ hiện, không mở được, đồng hồ DỪNG — thầy chốt 02/09)
+  //   'xoa'   ĐÃ XOÁ MỀM (biến mất mọi trang; dữ liệu bai.json + điểm AWord còn nguyên,
+  //           khôi phục ở mục KHO trên dashboard)
+  //   'xvv'   ⭐ v1.56.0 (03/09/2026) — XOÁ VĨNH VIỄN: biến mất khỏi mọi trang VÀ khỏi
+  //           cả mục KHO, KHÔNG còn đường khôi phục trên web.
+  //           ⛔ "Vĩnh viễn" ở đây là VĨNH VIỄN VỚI WEB, không phải xoá dữ liệu: trang
+  //           này là GitHub Pages tĩnh (không ghi được `bai.json`) và luật kho vẫn
+  //           `allow delete: if false`. Bài vẫn nằm trong `bai.json` + điểm AWord còn
+  //           nguyên; chỉ là không cửa nào (học sinh · dashboard · kho) nhìn thấy nữa.
+  //           Muốn lấy lại thì phải sửa tay tài liệu `lessonHan` trên Firebase Console.
+  // Thầy chốt: cờ GIỮ NGUYÊN khi app đẩy lại bài (y hệt hạn riêng). Vì sao gộp
+  // chung tài liệu với hạn riêng: kho này đã được liệt kê sẵn ở `napHanSua()`,
+  // thêm trường = KHÔNG tốn thêm lượt đọc Firestore nào (luật 8️⃣ BAN GIAO.md).
+  var TT_THE = {};
+
+  // ⭐ v1.76.0 (07/09/2026) — HAI BẢNG CỦA DẠNG BÀI **STAGE**, cùng tài liệu
+  // `lessonHan` (thêm trường = KHÔNG tốn thêm lượt đọc, đúng luật 8️⃣):
+  //   `boQua`   mảng TÊN em thầy bỏ qua khi xét "cả lớp xong chặng chưa"
+  //             (em nghỉ dài / bỏ lớp / chưa có mã đăng nhập — không thì cả lớp
+  //             kẹt mãi ở một chặng vì một em không bao giờ làm).
+  //   `moChang` số chặng thầy ÉP MỞ trên dashboard (0 = không ép).
+  // ⛔ Luật Firestore đã mở cho hai trường này ngày 07/09 — xem
+  // `myLesson-data/tai-lieu/LUAT FIRESTORE CAN DAN (07-09 THEM STAGE).md`.
+  var BO_QUA = {};
+  var MO_CHANG = {};
+  // ⭐ v1.135.0 (22/09/2026) — `tinhCa` = mảng TÊN em VÀO LỚP SAU NGÀY GIAO mà thầy bấm ↩
+  // "vẫn tính em này ở bài này" (ngược với `boQua`). Cùng tài liệu `lessonHan`.
+  var TINH_CA = {};
+  // ⭐⭐ v1.137.0 (24/09/2026, thầy chốt) — BỎ QUA EM THEO TỪNG CHẶNG: `boQuaChang` = map
+  // { "<số chặng>": [TÊN em] } cùng tài liệu `lessonHan`. Bỏ qua ở chặng 1 KHÔNG có nghĩa là bỏ
+  // qua ở chặng 2. `boQua` cũ (mảng, theo cả bài) VẪN ĐỌC và được hiểu = bỏ qua ở MỌI chặng
+  // (thầy chốt "giữ nghĩa cũ") — xem `boQuaChangCua`. Luật Firestore: `app/tools/dang-luat-bo-qua-chang.js`.
+  var BO_QUA_CHANG = {};
+
+  function boQuaCua(b) { return BO_QUA[(b && b.id) || ''] || []; }
+  function boQuaChangGoc(b) { return BO_QUA_CHANG[(b && b.id) || ''] || {}; }
+  // Tên em KHÔNG TÍNH ở chặng số `so` của bài STAGE = bảng của chặng đó ∪ `boQua` cũ (mọi chặng).
+  function boQuaChangCua(b, so) {
+    var ds = (boQuaChangGoc(b)[String(+so || 0)] || []).slice(), co = {};
+    ds.forEach(function (t) { co[khoaTen(t)] = 1; });
+    boQuaCua(b).forEach(function (t) { if (!co[khoaTen(t)]) { co[khoaTen(t)] = 1; ds.push(t); } });
+    return ds;
+  }
+  function datBoQuaChang(id, m) {
+    if (!id) return;
+    BO_QUA_CHANG[id] = m || {};
+    luuDemHan();
+  }
+  function tinhCaCua(b) { return TINH_CA[(b && b.id) || ''] || []; }
+  function moChangCua(b) { return +MO_CHANG[(b && b.id) || ''] || 0; }
+  /* Dashboard gọi sau khi ghi xong (cùng nếp `datHanSua`/`datTrangThai`) — không
+     cập nhật bản nhớ thì thầy vừa bấm xong, vẽ lại vẫn ra số cũ suốt 60 giây. */
+  function datBoQua(id, ds) {
+    if (!id) return;
+    BO_QUA[id] = (ds || []).slice();
+    luuDemHan();
+  }
+  function datTinhCa(id, ds) {
+    if (!id) return;
+    TINH_CA[id] = (ds || []).slice();
+    luuDemHan();
+  }
+  function datMoChang(id, so) {
+    if (!id) return;
+    MO_CHANG[id] = +so || 0;
+    luuDemHan();
+  }
+
+  // ⭐ v1.29.0 (28/08/2026) — NHỚ ĐỆM 60 GIÂY, cùng nếp `nhoDiem`/`docPhien` ngay dưới.
+  //
+  // ⛔ VÌ SAO PHẢI ĐỆM: `napHanSua()` treo trong `napDuLieu()`, mà `napDuLieu()` là
+  // cửa vào dữ liệu của CẢ BỐN TRANG (index · lop · bai · bai-sp) + dashboard. Nó
+  // liệt kê cả kho `lessonHan`, và Firestore tính MỘT LƯỢT ĐỌC CHO MỖI TÀI LIỆU
+  // liệt kê được — nên mỗi cú bấm qua lại lop ↔ bai là đọc lại cả kho từ đầu.
+  // Cộng với 200 tin chat mỗi lần mở trang lớp (xem `chat.js TOI_DA_TIN`), ngày
+  // 28/08/2026 project `aword-70dae` cạn sạch 50.000 lượt đọc/ngày của gói miễn
+  // phí ⇒ kho trả 429 cho MỌI phép đọc ⇒ SP CHECK của A2B chết cứng.
+  //
+  // Cái giá của 60 giây: thầy vừa sửa hạn ở dashboard thì em nào đang mở trang sẽ
+  // thấy hạn mới chậm nhất sau 1 phút. Đổi lại quá hời, và đúng bằng `CACHE_GIAY`
+  // mà bảng điểm đã chịu từ lâu.
+  // ⛔ Cố ý KHÔNG dùng lại `CACHE_GIAY` của bảng điểm (khai tận dòng ~327, DƯỚI chỗ
+  // này): `var` được nâng lên nên tên có sẵn, nhưng GIÁ TRỊ thì chỉ gán khi chạy tới
+  // dòng đó. Tham chiếu ngược kiểu ấy hôm nay còn chạy đúng vì `napHanSua()` gọi
+  // muộn hơn, nhưng ai dời một khối là hỏng câm. Hai con số cùng là 60, khác nhiệm vụ.
+  var HAN_CACHE_GIAY = 60;
+  // ⭐ v1.35.0 — đổi tên khoá đệm (`awc_hansua` → `awc_hansua2`): khuôn bản đệm đổi
+  // từ {id: hạn} sang {han:{}, tt:{}}; máy đang mở trang bản cũ mà đọc trúng khuôn
+  // cũ là mất sạch hạn/trạng thái trong 60 giây đầu.
+  var KHOA_HAN = 'awc_hansua2';
+
+  function docHanPhien() {
+    try {
+      var o = JSON.parse(sessionStorage.getItem(KHOA_HAN) || 'null');
+      if (o && (Date.now() - o.luc) < HAN_CACHE_GIAY * 1000) return o.bang;
+    } catch (e) {}
+    return null;
+  }
+
+  function napHanSua() {
+    // ⛔ CẢ THÂN HÀM NẰM TRONG try: `fetch()` không chỉ trả Promise hỏng, nó còn
+    // NÉM NGAY TẠI CHỖ (URL không hợp lệ, tham số lạ). Ném ngay thì `.catch()`
+    // phía dưới không đỡ được, cú ném xuyên thẳng qua `Promise.all` trong
+    // `napDuLieu()` — và lúc đó KHÔNG trang nào nạp được bài nữa, chỉ vì một
+    // tính năng phụ. Đo được thật trên bàn thử 26/08/2026.
+    try {
+      var db = CFG.AWORD_DB || {};
+      if (!db.projectId || !db.apiKey) return Promise.resolve({});
+      var san = docHanPhien();
+      if (san && san.han && san.tt) return Promise.resolve(san);
+      var u = 'https://firestore.googleapis.com/v1/projects/' + db.projectId
+            + '/databases/(default)/documents/lessonHan?pageSize=300&key='
+            + encodeURIComponent(db.apiKey);
+      // ⭐ v1.54.0 — ưu tiên lượt đã xin sớm ở js/som.js (cùng địa chỉ, cùng luật đệm).
+      return (laySom('lessonHan') || fetch(u, { cache: 'no-store' }))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          // ⭐ v1.35.0 — trả HAI bảng {han, tt} thay vì một bảng hạn.
+          var ra = { han: {}, tt: {}, boQua: {}, tinhCa: {}, moChang: {}, boQuaChang: {} };
+          var ds = (j && j.documents) || [];
+          for (var i = 0; i < ds.length; i++) {
+            var f = ds[i].fields || {};
+            var id = f.baiId && f.baiId.stringValue;
+            if (!id) continue;
+            ra.han[id] = String((f.han && f.han.stringValue) || '');
+            ra.tt[id] = chuanTt((f.tt && f.tt.stringValue) || '');
+            // ⭐ v1.76.0 — hai trường của dạng STAGE. Firestore REST gói mảng
+            // trong `arrayValue.values[]`, mỗi phần tử lại là một ô có kiểu.
+            var bq = f.boQua && f.boQua.arrayValue && f.boQua.arrayValue.values;
+            if (bq && bq.length) {
+              ra.boQua[id] = bq.map(function (v) {
+                return String((v && v.stringValue) || '');
+              }).filter(Boolean);
+            }
+            // v1.135.0 — `tinhCa` (đọc cùng khuôn `boQua`).
+            var tc = f.tinhCa && f.tinhCa.arrayValue && f.tinhCa.arrayValue.values;
+            if (tc && tc.length) {
+              ra.tinhCa[id] = tc.map(function (v) {
+                return String((v && v.stringValue) || '');
+              }).filter(Boolean);
+            }
+            // v1.137.0 — `boQuaChang`: REST gói map trong `mapValue.fields`, mỗi khoá là một mảng tên.
+            var bqc = f.boQuaChang && f.boQuaChang.mapValue && f.boQuaChang.mapValue.fields;
+            if (bqc) {
+              var m = {};
+              Object.keys(bqc).forEach(function (so) {
+                var vs = bqc[so] && bqc[so].arrayValue && bqc[so].arrayValue.values;
+                var ten = (vs || []).map(function (v) { return String((v && v.stringValue) || ''); }).filter(Boolean);
+                if (ten.length) m[so] = ten;
+              });
+              if (Object.keys(m).length) ra.boQuaChang[id] = m;
+            }
+            var mc = f.moChang && (f.moChang.integerValue != null
+                                   ? f.moChang.integerValue : f.moChang.doubleValue);
+            if (mc != null) ra.moChang[id] = +mc || 0;
+          }
+          // ⛔ CHỈ ĐỆM KHI ĐỌC ĐƯỢC THẬT (`j` khác null). Đệm cả lượt hỏng là
+          // đóng băng bảng rỗng suốt 60 giây — mạng chớp một cái là mọi thẻ
+          // mất hạn đã sửa, mà lần tải lại ngay sau đó cũng không cứu được.
+          if (j) { try { sessionStorage.setItem(KHOA_HAN,
+            JSON.stringify({ luc: Date.now(), bang: ra })); } catch (e) {} }
+          return ra;
+        })['catch'](function () { return { han: {}, tt: {} }; });
+    } catch (e) { return Promise.resolve({ han: {}, tt: {} }); }
+  }
+
+  // Bản đệm ghi lại cả hai bảng (gọi sau mỗi lần dashboard ghi xong, xem `datHanSua`
+  // / `datTrangThai`) — không dọn là thầy vừa bấm xong, sang trang khác bản đệm CŨ đè lại.
+  function luuDemHan() {
+    try { sessionStorage.setItem(KHOA_HAN,
+      JSON.stringify({ luc: Date.now(),
+        bang: { han: HAN_SUA, tt: TT_THE, boQua: BO_QUA, tinhCa: TINH_CA, moChang: MO_CHANG, boQuaChang: BO_QUA_CHANG } })); } catch (e) {}
+  }
+
+  // Chỉ nhận đúng 4 chữ; chữ lạ (kho bị ghi tay sai) coi như bình thường.
+  function chuanTt(s) {
+    s = String(s || '');
+    return (s === 'an' || s === 'khoa' || s === 'xoa' || s === 'xvv') ? s : '';
+  }
+
+  // ⭐ v1.35.0 — trạng thái ĐANG CÓ HIỆU LỰC của một thẻ: '' | 'an' | 'khoa' | 'xoa' | 'xvv'.
+  function trangThaiThe(b) {
+    return chuanTt(TT_THE[(b && b.id) || '']);
+  }
+
+  // Dashboard gọi sau khi ghi xong (cùng nếp `datHanSua`).
+  function datTrangThai(id, tt) {
+    if (!id) return;
+    TT_THE[id] = chuanTt(tt);
+    luuDemHan();
+  }
+
+  // ⭐ v1.35.0 — "CÒN HẠN" là MỘT hàm chung, đừng tự viết `moc == null || moc > now`
+  // ở từng trang nữa (trước v1.35.0 có 6 chỗ viết tay như thế):
+  //   · ẩn / xoá / xoá vĩnh viễn → KHÔNG còn hạn (không tính là bài đang giao)
+  //   · tạm khoá  → LUÔN còn hạn, kể cả mốc đã qua (thầy chốt 02/09: khoá là
+  //                 DỪNG đồng hồ, không bao giờ hiện HẾT HẠN trong lúc khoá; mở
+  //                 khoá thì đồng hồ chạy lại theo hạn cũ nguyên vẹn)
+  //   · còn lại   → chưa đặt hạn, hoặc mốc chưa qua
+  function conHan(b) {
+    var tt = trangThaiThe(b);
+    if (tt === 'an' || tt === 'xoa' || tt === 'xvv') return false;
+    if (tt === 'khoa') return true;
+    var moc = mocHan(b);
+    return moc == null || moc > Date.now();
+  }
+
+  // Hạn ĐANG CÓ HIỆU LỰC của một thẻ: hạn sửa trước, rồi mới tới `bai.json`.
+  function hanCua(b) {
+    var h = HAN_SUA[(b && b.id) || ''];
+    if (typeof h === 'string' && h) return h;
+    return (b && b.han) || '';
+  }
+
+  // Thẻ này có đang bị đổi hạn riêng không (để dashboard đeo huy hiệu).
+  function daSuaHan(b) {
+    var h = HAN_SUA[(b && b.id) || ''];
+    return !!(typeof h === 'string' && h);
+  }
+
+  // Dashboard gọi sau khi ghi xong, để vẽ lại ngay mà không phải nạp lại cả trang.
+  function datHanSua(id, han) {
+    if (!id) return;
+    HAN_SUA[id] = String(han || '');
+    // ⭐ v1.29.0 — SỬA HẠN LÀ PHẢI DỌN LUÔN BẢN ĐỆM 60 GIÂY (xem `napHanSua`).
+    // Không dọn thì thầy vừa đặt hạn xong, bấm sang trang khác là bản đệm CŨ
+    // đè ngược lại — thầy tưởng lệnh đặt hạn không ăn.
+    luuDemHan();
+  }
+
+  // ⭐ v1.54.0 — LẤY LƯỢT ĐÃ XIN SỚM (js/som.js ở <head>) nếu có, dùng MỘT LẦN
+  // rồi xoá. Không có (trang không nạp som.js, lỗi) thì trả null ⇒ tự fetch.
+  function laySom(khoa) {
+    try {
+      var s = window.__napSom;
+      if (!s || !s[khoa]) return null;
+      var p = s[khoa]; s[khoa] = null;
+      return p;
+    } catch (e) { return null; }
+  }
+
+  function napJson(duong) {
+    var p = laySom(duong) || fetch((/^data\//.test(duong) ? 'https://andrewclasses.com/' : '') + duong + '?t=' + Date.now(), { cache: 'no-store' });
+    return p
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .catch(function () { return null; });
+  }
+
+  /* ⭐ v1.78.0 (08/09/2026) — KHÓA HỌC nằm ở MẢNG RIÊNG `dl.khoa`.
+     `lop.json` nay có hai mảng cùng hình dạng: `lop` (lớp thường, có lịch/điểm danh)
+     và `khoa` (khóa học thu phí — myStudent v2.69.0, mỗi mục mang `loai:'khoa'`).
+     ⛔ CỐ Ý không gộp sẵn vào `dl.lop`: `dashboard.html` đọc thẳng `DL.lop` ở 8 chỗ để
+     vẽ danh sách lớp của thầy — gộp là đẻ thêm ô lớp lạ trên trang quản lý. Chỉ mấy
+     hàm TRA CỨU dưới đây được nhìn cả hai mảng. */
+  function dsNoiHoc(dl) {
+    return (dl.lop || []).concat(dl.khoa || []);
+  }
+
+  function laKhoa(l) {
+    return !!(l && l.loai === 'khoa');
+  }
+
+  function lopTheoMa(dl, maLop) {
+    var ds = dsNoiHoc(dl);
+    for (var i = 0; i < ds.length; i++) if (ds[i].maLop === maLop) return ds[i];
+    return null;
+  }
+
+  /* ⭐⭐ v1.95.0 (13/09/2026) — EM NÀO CÓ MẶT Ở MỘT BÀI (thầy chốt).
+     Vì sao: lớp 17 em, bài cũ đã xong 17/17; hôm sau thêm 1 em (myStudent → PUSH) thì
+     thẻ CŨ báo 17/18 và bêu em mới "thiếu bài" dù lúc giao bài em chưa vào lớp — còn kéo
+     theo thẻ nháy đỏ gần giờ học vì "chưa xong hết".
+     Luật: `h.vao` ('YYYY-MM-DD', app v2.66.0 ghi từ myStudent `created_at`) SAU ngày giao
+     bài ⇒ em KHÔNG thuộc bài đó. Không có `vao` (em cũ / bản myStudent cũ) = có từ đầu.
+     Mốc "ngày giao" = `b.taoLuc` (32/32 bài đang có), lùi về ngày trong hạn, không có
+     nữa thì coi mọi em đều có mặt (không bao giờ bỏ nhầm ai vì thiếu dữ liệu).
+     ⛔ SĨ SỐ CỦA MỘT BÀI = `caLopCuaBai(l, b).length`, KHÔNG phải `l.hocSinh.length` —
+     lop.html (`theTuBai`) và dashboard (`tinhBai`) đều lấy từ đây; thanh x/y, cột icon
+     thiếu, bảng kết quả, xét chặng STAGE đều đọc danh sách này. So chuỗi 'YYYY-MM-DD'
+     là đủ (cùng khuôn, không cần Date). */
+  function ngayGiaoBai(b) {
+    var t = String((b && b.taoLuc) || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+    var h = String(hanCua(b) || '').slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(h) ? h : '';
+  }
+  function emCoMatOBai(h, b) {
+    var vao = String((h && h.vao) || '').slice(0, 10);
+    if (!vao) return true;
+    var giao = ngayGiaoBai(b);
+    return !giao || vao <= giao;
+  }
+  /* ⭐⭐ v1.135.0 (22/09/2026, thầy chốt) — "EM KHÔNG TÍNH Ở BÀI NÀY" GỘP HAI ĐƯỜNG.
+
+     Sự cố: B1-B có 3 em vào lớp 21/9, bài giao 19/9. Thầy ĐÃ bấm ✕ bỏ qua các em từ trước
+     (kho `lessonHan.boQua` vẫn còn đủ tên), nhưng 22/9 myStudent mới đẩy `vao` lên web ⇒
+     luật `emCoMatOBai` gạch luôn các em khỏi danh sách lớp CỦA BÀI ⇒ các em BIẾN MẤT khỏi
+     lưới em, khỏi ô "Đã bỏ qua" (không còn nút ↩), khỏi tab THỜI LƯỢNG và khỏi leaderboard.
+     Thầy chốt: hai đường chỉ được làm MỘT việc — KHÔNG TÍNH vào thanh x/N và không giữ
+     chặng lại — chứ KHÔNG được xoá dấu vết em.
+
+     Từ đây:
+       `caLopDayDu(l)`    = TRỌN danh sách lớp — lưới em, THỜI LƯỢNG, leaderboard, avatar.
+       `emKhongTinh(l,b)` = [{ten, ly:'tay'|'muon', vao}] — ô "Không tính ở bài này".
+       `caLopCuaBai(l,b)` = em ĐANG TÍNH (đầy đủ trừ không tính) — x/N, "thiếu", xét chặng.
+     ⛔ `caLopCuaBai` GIỮ NGUYÊN TÊN vì 4 trang đang gọi nó cho phép ĐẾM; chỗ nào cần
+     "cả lớp để HIỆN" thì gọi `caLopDayDu`. Đổi nhầm hai cái là hoặc bêu em không thuộc bài,
+     hoặc lại làm em biến mất như lần này.
+     ⛔ So tên qua `khoaTen` (v1.134.0: quy về MÃ em, biết cả tên cũ) — thầy đổi tên em rồi
+     thì tên trong `boQua` vẫn khớp đúng em. */
+  function caLopDayDu(l) {
+    return ((l && l.hocSinh) || []).map(function (h) { return h.ten; });
+  }
+  // Em vào lớp SAU ngày giao (chỉ lớp thường — xem chú thích KHÓA HỌC ở dưới).
+  function emVaoMuon(h, b, l) {
+    if (l && l.loai === 'khoa') return false;
+    return !emCoMatOBai(h, b);
+  }
+  /* ⭐⭐ v1.137.0 (24/09/2026, thầy chốt) — BÀI STAGE: "không tính" đi theo TỪNG CHẶNG.
+       `emKhongTinh(l, b, so)`  = em thầy bỏ qua ở chặng số `so` (bảng `boQuaChang` + `boQua` cũ).
+       `emKhongTinh(l, b)`      = em bị bỏ qua ở MỌI chặng của bài (chỉ những em này mới rời hẳn
+                                  mẫu số x/N của cả thẻ — em bỏ qua một chặng vẫn còn ở chặng khác).
+     ⛔ Bài STAGE KHÔNG còn tự trừ em VÀO LỚP SAU NGÀY GIAO (thầy chốt: "tính cả bài, tôi sẽ bỏ
+     khỏi chặng bằng tay") — luật `muon` + `tinhCa` chỉ còn cho bài thường. */
+  function laStageCoChang(b) {
+    return laBaiStage(b) && changCuaBai(b).some(function (c) { return !!c.so; });
+  }
+  function emKhongTinh(l, b, so) {
+    if (laStageCoChang(b)) {
+      var cac = so == null ? changCuaBai(b).map(function (c) { return c.so; }) : [+so || 0];
+      var bang = cac.map(function (s) {
+        var m = {}; boQuaChangCua(b, s).forEach(function (t) { m[khoaTen(t)] = 1; }); return m;
+      });
+      return ((l && l.hocSinh) || []).filter(function (h) {
+        var k = khoaTen(h.ten);
+        return bang.length && bang.every(function (m) { return m[k]; });
+      }).map(function (h) { return { ten: h.ten, ly: 'tay', vao: String(h.vao || '') }; });
+    }
+    var bo = {}, tinh = {}, ra = [];
+    boQuaCua(b).forEach(function (t) { bo[khoaTen(t)] = 1; });
+    tinhCaCua(b).forEach(function (t) { tinh[khoaTen(t)] = 1; });
+    ((l && l.hocSinh) || []).forEach(function (h) {
+      var k = khoaTen(h.ten);
+      if (bo[k]) { ra.push({ ten: h.ten, ly: 'tay', vao: String(h.vao || '') }); return; }
+      // ↩ của thầy (`tinhCa`) thắng luật ngày vào lớp.
+      if (emVaoMuon(h, b, l) && !tinh[k]) ra.push({ ten: h.ten, ly: 'muon', vao: String(h.vao || '') });
+    });
+    return ra;
+  }
+  /* ⭐⭐ v1.136.0 (22/09/2026, thầy chốt) — XẾP HẠNG MỘT ACT, DÙNG CHUNG cho: leaderboard
+     trang bài (`bai.html xepBang`), pop-up 🏆 dashboard (`xepActDb`), pop-up thẻ/chặng trang
+     lớp và trang khóa (`xepActPop`). Trước bản này là BỐN BẢN CHÉP gần giống nhau — sửa luật
+     một chỗ là ba chỗ kia lệch câm.
+
+     Thứ tự (thầy chốt): ① em ĐANG TÍNH có điểm (điểm ↓, hoà thì nhanh hơn đứng trước) ·
+     ② em ĐANG TÍNH chưa làm · ③ em KHÔNG TÍNH ở bài này — **LUÔN CUỐI** (có điểm trước,
+     chưa làm sau). Dòng ③ mang cờ `mien`: giao diện tô XÁM, KHÔNG đánh số hạng, KHÔNG huy
+     chương — nhưng **vẫn hiện điểm + thời gian** ("không mất dấu vết", thầy chốt 22/09).
+     `dsDiem` = dòng điểm của act (kho AWord) · `caLopDu` = TRỌN lớp (`caLopDayDu`) ·
+     `khongTinh` = tên em không tính (`emKhongTinh(l, b).map(x => x.ten)`).
+     ⛔ KHÔNG sửa dòng gốc trong kho điểm: dòng của em ③ được CHÉP NÔNG rồi mới gắn cờ. */
+  function xepHangAct(dsDiem, caLopDu, khongTinh) {
+    var mien = {}, trong = {};
+    (khongTinh || []).forEach(function (t) { mien[khoaTen(t)] = 1; });
+    (caLopDu || []).forEach(function (t) { trong[khoaTen(t)] = 1; });
+    var nhanhHon = function (a, b) {
+      if (a.diem !== b.diem) return b.diem - a.diem;
+      return (a.giay || 0) - (b.giay || 0);
+    };
+    var co = (dsDiem || []).filter(function (e) { return trong[khoaEm(e)]; }).slice().sort(nhanhHon);
+    var daCo = {};
+    co.forEach(function (e) { daCo[khoaEm(e)] = 1; });
+    var chua = (caLopDu || []).filter(function (t) { return !daCo[khoaTen(t)]; })
+      .map(function (t) { return { ten: t, chua: true }; });
+    var laMien = function (e) { return !!mien[khoaEm(e)]; };
+    var deCo = function (e) { var o = {}; for (var k in e) if (Object.prototype.hasOwnProperty.call(e, k)) o[k] = e[k]; o.mien = true; return o; };
+    return co.filter(function (e) { return !laMien(e); })
+      .concat(chua.filter(function (e) { return !laMien(e); }))
+      .concat(co.filter(laMien).map(deCo))
+      .concat(chua.filter(laMien).map(deCo));
+  }
+
+  // v1.137.0 — `so` (tuỳ chọn): số chặng của bài STAGE ⇒ em đang tính Ở CHẶNG ĐÓ.
+  function caLopCuaBai(l, b, so) {
+    // ⭐ v1.113.0 (16/09/2026) — KHÓA HỌC: MỌI em trong khóa đều thuộc MỌI lesson, bất
+    // kể ngày vào. Luật `vao` là của lớp thường (bài giao theo buổi, em vào sau buổi đó
+    // không phải làm); khóa học thì lesson mở dần và em nào cũng học từ đầu — 17 em vào
+    // K9 ngày 15/09 mà LESSON 17 giao 14/09 ⇒ dashboard đếm 3/3 trong khi `khoa.html`
+    // (đọc thẳng `l.hocSinh`) đếm 20 — hai trang lệch nhau. Nay cùng một số.
+    // (v1.135.0: khóa học vẫn bỏ được em bằng nút ✕ — `boQua` áp cho cả hai loại.)
+    var bo = {};
+    emKhongTinh(l, b, so).forEach(function (x) { bo[khoaTen(x.ten)] = 1; });
+    return caLopDayDu(l).filter(function (t) { return !bo[khoaTen(t)]; });
+  }
+  /* ⭐ v1.137.0 — THEO MỘT ACT: act thuộc chặng nào thì dùng "không tính" của chặng đó (bài STAGE);
+     bài thường / act không tìm thấy chặng ⇒ y như cả bài. Dùng cho x/N từng dòng act và leaderboard. */
+  function soChangCuaAct(b, ma) {
+    if (!laStageCoChang(b)) return null;
+    var c = changCuaBai(b).filter(function (x) { return x.acts.some(function (a) { return a.ma === ma; }); })[0];
+    return c ? c.so : null;
+  }
+  function caLopCuaAct(l, b, ma) { return caLopCuaBai(l, b, soChangCuaAct(b, ma)); }
+  function khongTinhCuaAct(l, b, ma) {
+    return emKhongTinh(l, b, soChangCuaAct(b, ma)).map(function (x) { return x.ten; });
+  }
+
+  // ⭐ v1.35.0 — BA CỬA lấy bài của một lớp, theo trạng thái thẻ (`trangThaiThe`):
+  //   (không truyền)  cửa HỌC SINH: bỏ thẻ ẨN + thẻ ĐÃ XOÁ. Đây là cửa mặc định —
+  //                   lop/bai/bai-sp và cả "xem như học sinh" của dashboard đều
+  //                   qua đây, nên mở thẳng địa chỉ bài đã ẩn/xoá cũng bị đẩy về lớp.
+  //   'ql'            cửa QUẢN LÝ (dashboard): chỉ bỏ thẻ ĐÃ XOÁ, thẻ ẩn vẫn hiện (mờ)
+  //                   để thầy bấm "Hiện lại".
+  //   'kho'           chỉ thẻ ĐÃ XOÁ — dùng cho nhóm "Đã xoá" của mục KHO và cho
+  //                   nút "Xoá vĩnh viễn tất cả" (nó chỉ được đụng nhóm này).
+  //   'tatca'         ⭐ v1.60.0 — MỌI thẻ của lớp, đủ bốn trạng thái (bình thường ·
+  //                   ẩn · tạm khoá · đã xoá): mục KHO nay là chỗ quản lý cả bài cũ.
+  //                   ⛔ CHỈ dashboard được gọi cửa này. Đem sang lop/bai/bai-sp là
+  //                   thẻ ẩn và thẻ đã xoá hiện ngược lên cho học sinh.
+  // Thẻ TẠM KHOÁ có mặt ở mọi cửa (khoá là "hiện thẻ, không cho mở", xem lop.html).
+  // ⭐ v1.56.0 — thẻ XOÁ VĨNH VIỄN ('xvv') rụng khỏi MỌI cửa, kể cả 'kho' và 'tatca'.
+  // ⛔ Chốt chặn phải đứng TRƯỚC mấy dòng dưới: cửa 'ql' viết là `tt !== 'xoa'` và cửa
+  // 'tatca' nhận tuốt, nên 'xvv' lọt qua cả hai, thẻ đã xoá vĩnh viễn hiện ngược lên.
+  function baiCuaLop(dl, maLop, che) {
+    var ds = (dl.bai && dl.bai[maLop]) ? dl.bai[maLop] : [];
+    return ds.filter(function (b) {
+      var tt = trangThaiThe(b);
+      if (tt === 'xvv') return false;
+      if (che === 'tatca') return true;
+      if (che === 'kho') return tt === 'xoa';
+      if (che === 'ql') return tt !== 'xoa';
+      return tt !== 'xoa' && tt !== 'an';
+    });
+  }
+
+  /* ⭐⭐ v1.78.0 — MỘT MÃ CÓ THỂ Ở NHIỀU NƠI (thầy chốt 08/09/2026).
+     Trước bản này mã là duy nhất toàn trung tâm nên hàm tra trả về nơi ĐẦU TIÊN rồi
+     dừng — đúng thứ làm em KHỔNG NGỌC LINH vào thẳng A1-C dù em còn ở khóa NỀN TẢNG K9.
+     Nay có ba kiểu em ở hai nơi mà vẫn CÙNG MỘT MÃ:
+       · lớp thường + KHÓA HỌC — myStudent v2.69.0 cho phép trùng mã đúng một cặp như
+         vậy (thầy chốt: em chỉ phải nhớ MỘT mã);
+       · lớp chính + lớp HỌC BỔ SUNG — bản ghi bổ sung mượn mã của lớp chính lúc xuất
+         (myStudent v2.70.0), mang cờ `bs`;
+       · cả ba, nếu em vừa học bổ sung vừa học khóa.
+     ⇒ `moiNoiTheoMa` trả MỌI nơi (theo thứ tự: lớp thường trước, khóa sau).
+     `timTheoMa` giữ nguyên nghĩa cũ (nơi đầu tiên) cho những chỗ chỉ cần biết
+     "mã này có thật không". */
+  function moiNoiTheoMa(dl, maGo) {
+    var ma = chuanMa(maGo);
+    var ra = [];
+    if (!ma) return ra;
+    var ds = dsNoiHoc(dl);
+    for (var i = 0; i < ds.length; i++) {
+      var l = ds[i], hs = l.hocSinh || [];
+      for (var j = 0; j < hs.length; j++) {
+        if (hs[j].ma && chuanMa(hs[j].ma) === ma) ra.push({ lop: l, em: hs[j] });
+      }
+    }
+    return ra;
+  }
+
+  function timTheoMa(dl, maGo) {
+    var ds = moiNoiTheoMa(dl, maGo);
+    return ds.length ? ds[0] : null;
+  }
+
+  // ⭐⭐ v1.82.0 — HỌC SINH ĐẶC BIỆT (myStudent v2.71.0, thầy chốt 09/09/2026): phụ
+  // huynh xin một mã riêng để luyện bài CÙNG con, đọc từ `l.hsDb` — mảng RIÊNG mà
+  // `web.js` chỉ đẩy khi lớp có ai đó (xem `lib/web.js`), KHÔNG có ở khóa học và
+  // KHÔNG BAO GIỜ lẫn vào `moiNoiTheoMa()`: một người CHỈ CÓ ĐÚNG MỘT nơi (khác hẳn
+  // học sinh thật có thể ở 2 nơi), nên trả về MỘT kết quả (hoặc null), không phải mảng.
+  function emDacBietTheoMa(dl, maGo) {
+    var ma = chuanMa(maGo);
+    if (!ma) return null;
+    var ds = dl.lop || [];
+    for (var i = 0; i < ds.length; i++) {
+      var l = ds[i], hs = l.hsDb || [];
+      for (var j = 0; j < hs.length; j++) {
+        if (hs[j].ma && chuanMa(hs[j].ma) === ma) return { lop: l, em: hs[j] };
+      }
+    }
+    return null;
+  }
+
+  // ---------- em đang đăng nhập ----------
+
+  function docNho() {
+    try { return JSON.parse(localStorage.getItem(KHOA_EM) || 'null'); }
+    catch (e) { return null; }
+  }
+
+  function luuEm(em) {
+    try { localStorage.setItem(KHOA_EM, JSON.stringify(em)); } catch (e) {}
+  }
+
+  function thoat() {
+    try { localStorage.removeItem(KHOA_EM); } catch (e) {}
+    try { sessionStorage.removeItem(KHOA_CHON); } catch (e) {}
+  }
+
+  /* ⭐⭐ v1.112.0 (15/09/2026, thầy chốt) — EM Ở ≥2 NƠI: MỖI LẦN MỞ TRANG LÀ MÀN CHỌN,
+     KỂ CẢ KHI ĐÃ CHỌN + ĐÃ LƯU ĐĂNG NHẬP. `index.html` vốn đã hỏi lại (v1.78.0); cửa
+     còn hở là em mở THẲNG `lop.html`/`khoa.html` (bookmark, lịch sử, tab mới) thì vào
+     luôn nơi đã chọn lần trước. Nay nơi đã chọn được ghi thêm vào `sessionStorage`
+     (sống THEO TAB: tab mới/cửa sổ mới là rỗng, chuyển trang trong cùng tab thì còn) —
+     `emDangHoc` ở em ≥2 nơi CHỈ chấp nhận nơi trong `docNho().lop` khi tab này ĐÃ BẤM
+     CHỌN nó; không thì trả null → về `index.html` → màn chọn. Em đúng 1 nơi không đụng gì.
+     ⛔ `?nhu=`/`?gv=` (thầy xem như em) đứng trước đoạn này trong `emDangHoc`, không dính. */
+  var KHOA_CHON = 'mylesson_da_chon';
+  function danhDauDaChon(maLop) {
+    try { sessionStorage.setItem(KHOA_CHON, String(maLop || '')); } catch (e) {}
+  }
+  function daChonTabNay(maLop) {
+    try { return !!maLop && sessionStorage.getItem(KHOA_CHON) === String(maLop); }
+    catch (e) { return false; }
+  }
+
+  // Trả về { lop, ten, ma, nickname } của em đang mở trang, hoặc null.
+  //
+  // ⭐ `?nhu=<mã>` — XEM NHƯ MỘT EM. App myLesson trên máy thầy dùng đường này
+  // để xem nhanh đúng trang học sinh đang thấy (Đợt 3). KHÔNG ghi vào máy: đóng
+  // tab là hết, không đá em nào ra khỏi phiên đăng nhập của chính em.
+  // Việc đăng nhập ở đây vốn KHÔNG nhằm bảo mật (mọi mã đều nằm trong lop.json
+  // công khai), nên đường này không mở thêm cửa nào cả.
+  // ⭐ `?gv=1&lop=<maLop>` — XEM NHƯ CHÍNH THẦY (không phải một em). Dashboard
+  // dùng đường này khi thầy mở trang lớp từ trang quản lý — danh tính/avatar/
+  // chat hiện ra là "Thầy Andrew", không mượn tên em nào cả. Cũng KHÔNG ghi
+  // vào máy, giống hệt `?nhu=`.
+  function emDangHoc(dl) {
+    var q = new URLSearchParams(location.search);
+    if (q.get('gv')) {
+      var lgv = lopTheoMa(dl, q.get('lop') || '');
+      if (lgv) return { lop: lgv.maLop, ten: 'Thầy Andrew', ma: 'GV', vaiTro: 'gv', xemNhu: true };
+    }
+    var nhu = q.get('nhu');
+    if (nhu) {
+      // `?nhu=` có thể kèm `?lop=` để thầy xem em đó Ở ĐÚNG NƠI nào (em ở 2 nơi).
+      var ds = moiNoiTheoMa(dl, nhu);
+      var t = noiKhop(ds, q.get('lop')) || ds[0];
+      if (t) return { lop: t.lop.maLop, ten: t.em.ten, ma: chuanMa(t.em.ma), xemNhu: true };
+      // v1.82.0 — mã không khớp học sinh thường nào thì thử HỌC SINH ĐẶC BIỆT, để
+      // thầy xem thử đúng trang phụ huynh đang thấy từ app myLesson.
+      var db = emDacBietTheoMa(dl, nhu);
+      if (db) return { lop: db.lop.maLop, ten: db.em.ten, ma: chuanMa(db.em.ma),
+                       xemNhu: true, dacBiet: true };
+    }
+    var cu = docNho();
+    if (!cu || !cu.ma) return null;
+    // v1.82.0 — HỌC SINH ĐẶC BIỆT: mã KHÔNG BAO GIỜ trùng với học sinh thường (myStudent
+    // đã đảm bảo), nên xét thẳng TRƯỚC — tránh gọi `moiNoiTheoMa` rồi phải lo mảng rỗng.
+    if (cu.dacBiet) {
+      var dbCu = emDacBietTheoMa(dl, cu.ma);
+      return dbCu ? { lop: dbCu.lop.maLop, ten: dbCu.em.ten, ma: chuanMa(dbCu.em.ma),
+                      dacBiet: true } : null;
+    }
+    // Tra lại mã trong danh sách MỚI — thầy đổi/xoá mã thì phiên cũ hết hiệu lực.
+    // ⭐ v1.78.0 — mã có thể ở NHIỀU NƠI: phải lấy đúng nơi em đã chọn ở màn chọn lớp
+    // (`docNho().lop`). Bản cũ luôn lấy nơi đầu tiên nên em chọn khóa học xong vẫn bị
+    // đá về lớp thường — chính lỗi thầy gặp 08/09.
+    var moiNoi = moiNoiTheoMa(dl, cu.ma);
+    if (!moiNoi.length) return null;
+    var thay = noiKhop(moiNoi, cu.lop);
+    // ⭐ v1.111.0 (15/09/2026, thầy chốt) — gõ mã + SIGN IN là ĐÃ ĐĂNG NHẬP kể cả khi
+    // em còn ở nhiều nơi (`dangnhap.js` lưu `lop:''` rồi mới mở màn chọn). Em NHIỀU
+    // nơi mà CHƯA CHỌN (hoặc nơi đã chọn không còn) thì ở đây trả `null` để lop/khoa
+    // đá về `index.html` — nơi đó đọc `docNho()` và bày màn chọn. ⛔ Không được lùi
+    // về `moiNoi[0]` như bản cũ: mở thẳng `khoa.html` sẽ vẽ lớp thường như một khóa.
+    if (!thay) {
+      if (moiNoi.length > 1) return null;
+      thay = moiNoi[0];
+    }
+    // ⭐⭐ v1.112.0 — em ≥2 nơi: nơi đã lưu chỉ có giá trị trong TAB đã bấm chọn nó
+    // (xem `danhDauDaChon`). Tab mới mở thẳng lop/khoa ⇒ null ⇒ về màn chọn.
+    if (moiNoi.length > 1 && !daChonTabNay(thay.lop.maLop)) return null;
+    return { lop: thay.lop.maLop, ten: thay.em.ten, ma: chuanMa(thay.em.ma) };
+  }
+
+  // Trong danh sách nơi, lấy nơi có `maLop` khớp (null nếu không có).
+  function noiKhop(ds, maLop) {
+    if (!maLop) return null;
+    for (var i = 0; i < ds.length; i++) if (ds[i].lop.maLop === maLop) return ds[i];
+    return null;
+  }
+
+  // Trang nào cũng gọi hàm này đầu tiên: chưa đăng nhập thì về màn đăng nhập.
+  function batBuocDangNhap(dl) {
+    var em = emDangHoc(dl);
+    if (!em) { location.replace('index.html'); return null; }
+    return em;
+  }
+
+  // Chuỗi query (KHÔNG có dấu & hay ? ở đầu) để GIỮ NGUYÊN chế độ xem khi
+  // chuyển trang: thầy xem như một em (`nhu=`) hoặc thầy xem thẳng bằng danh
+  // tính của mình (`gv=1&lop=`). Dùng CHUNG ở lop.html/bai.html/bai-sp.html —
+  // đừng viết riêng từng nơi, dễ quên cập nhật một chỗ (bài học cũ của app này).
+  function giuXemNhuQuery(em, maHs, maLop) {
+    if (!em || !em.xemNhu) return '';
+    if (em.vaiTro === 'gv') return 'gv=1&lop=' + encodeURIComponent(maLop || '');
+    return 'nhu=' + encodeURIComponent(maHs || '');
+  }
+
+  // ---------- mã quản lý ----------
+
+  // So mã thầy gõ với chuỗi BĂM trong config.js. Băm một chiều: đọc được file
+  // cũng không suy ngược ra mã. ⚠️ Đây KHÔNG phải bảo mật thật (trang tĩnh thì
+  // mọi thứ đều nằm ở máy người xem) — chỉ để người tình cờ mở file không thấy
+  // ngay mã của thầy.
+  function bam(chuoi) {
+    var b = new TextEncoder().encode(chuanMa(chuoi));
+    return crypto.subtle.digest('SHA-256', b).then(function (buf) {
+      var m = Array.prototype.map.call(new Uint8Array(buf), function (x) {
+        return ('0' + x.toString(16)).slice(-2);
+      });
+      return m.join('');
+    });
+  }
+
+  // Nhớ "máy này đã gõ đúng mã quản lý" — để lần sau vào thẳng dashboard, và để
+  // tab CLASSES bên app myLesson mở ra là dùng được ngay.
+  // ⛔ CHỈ nhớ một CỜ, KHÔNG nhớ mã: mã không bao giờ được nằm lại trong máy.
+  var KHOA_QL = 'mylesson_ql';
+
+  function laAdmin() {
+    try { return localStorage.getItem(KHOA_QL) === '1'; } catch (e) { return false; }
+  }
+  function datAdmin() {
+    try { localStorage.setItem(KHOA_QL, '1'); } catch (e) {}
+  }
+  function thoatAdmin() {
+    try { localStorage.removeItem(KHOA_QL); } catch (e) {}
+  }
+
+  function laMaQuanLy(maGo) {
+    var dich = String(CFG.QUAN_LY_BAM || '').toLowerCase();
+    if (!dich) return Promise.resolve(false);
+    // crypto.subtle chỉ có ở https hoặc localhost. Thiếu thì coi như không khớp
+    // (thầy vẫn vào dashboard được từ app myLesson).
+    if (!(window.crypto && crypto.subtle)) return Promise.resolve(false);
+    return bam(maGo).then(function (h) { return h === dich; });
+  }
+
+  // ---------- điểm bên AWord (Firestore, chỉ đọc) ----------
+  //
+  // Đọc thẳng qua đường REST công khai — luật Firestore bên AWord cho phép ai
+  // cũng đọc `assignments/{mã}/scores`. Không cần SDK, không cần đăng nhập.
+  //
+  // ⛔ CHỈ đọc khi mở trang + khi bấm làm mới, KHÔNG tự nạp lại theo nhịp:
+  // Firebase của AWord là gói miễn phí, có hạn mức đọc mỗi ngày.
+  //
+  // ⭐⭐ v1.74.0 (06/09/2026, rà soát toàn hệ mục L) — NHỚ ĐIỂM THEO SỔ LƯỢT NỘP.
+  // Trước: MỖI lần mở trang lớp, MỖI act = một lượt liệt kê `scores` (tới 300 tài
+  // liệu, Firestore tính 1 lượt đọc/tài liệu) — lớp A1C có 24 act ⇒ vài trăm lượt
+  // đọc cho MỘT em mở trang, kể cả khi không ai nộp thêm gì. Nay:
+  //   1. Điểm đã gộp cất trong localStorage (`awc_diem2_<mã>`) kèm `soNop` =
+  //      `submitCount` của tài liệu bài giao lúc đọc (AWord tự +1 mỗi lần một em
+  //      nộp — luật kho cho học sinh đụng đúng 2 trường `lastSubmitAt`/`submitCount`).
+  //   2. Mở trang chỉ đọc tài liệu bài giao (1 lượt, ~200 byte nhờ `mask` 2 trường).
+  //      `soNop` không đổi và bản nhớ chưa quá 10 phút ⇒ dùng bản nhớ, KHÔNG liệt
+  //      kê scores. Đổi ⇒ liệt kê như cũ rồi nhớ lại.
+  //   3. Thầy chốt 06/09: LÀM MỚI CƯỠNG BỨC mỗi 10 PHÚT (`TUOI_TOI_DA_MS`) — thầy
+  //      XOÁ điểm bên AWord thì sổ nộp không đổi, thiếu mốc này là học sinh thấy
+  //      điểm cũ mãi. Bài giao chưa có `submitCount` (bài cũ) ⇒ chỉ còn mốc 10 phút.
+  //   Nút "làm mới" (`epDocLai`) vẫn liệt kê thẳng như trước. Bản nhớ RAM `nhoDiem`
+  //   giữ cho đi qua đi lại giữa trang lớp ↔ trang bài trong cùng một phiên.
+
+  var nhoDiem = {};
+  var TUOI_TOI_DA_MS = 10 * 60 * 1000;
+  var KHOA_DIEM2 = 'awc_diem2_';
+
+  function urlDiem(ma, token) {
+    var db = CFG.AWORD_DB || {};
+    var u = 'https://firestore.googleapis.com/v1/projects/' + db.projectId +
+            '/databases/(default)/documents/assignments/' + encodeURIComponent(ma) +
+            '/scores?pageSize=300&key=' + db.apiKey;
+    if (token) u += '&pageToken=' + encodeURIComponent(token);
+    return u;
+  }
+
+  function soF(f) {
+    if (!f) return 0;
+    return Number(f.integerValue != null ? f.integerValue : (f.doubleValue || 0));
+  }
+
+  // Bản nhớ bền trong máy: { luc, soNop, ds }. Trả null khi chưa có / hỏng.
+  // ⛔⛔ v1.74.1 — TÊN PHẢI LÀ `docNhoDiem`, KHÔNG phải `docNho`: cả file là MỘT hàm bao, và
+  // `docNho()` (không tham số) đã tồn tại ở khối "em đang đăng nhập" phía dưới. Bản v1.74.0 đặt
+  // trùng tên ⇒ khai báo sau ĐÈ khai báo trước ⇒ `emDangHoc()` gọi `docNho()` nhận về
+  // `localStorage['awc_diem2_undefined']` = null ⇒ MỌI học sinh bị đá về màn đăng nhập
+  // (thầy báo 06/09 ~10:40, bản lỗi sống ~1 giờ). Thêm hàm vào file này: grep tên trước.
+  function docNhoDiem(ma) {
+    try {
+      var o = JSON.parse(localStorage.getItem(KHOA_DIEM2 + ma) || 'null');
+      return (o && Array.isArray(o.ds)) ? o : null;
+    } catch (e) { return null; }
+  }
+  function ghiNhoDiem(ma, ds, soNop) {
+    try {
+      localStorage.setItem(KHOA_DIEM2 + ma, JSON.stringify({ luc: Date.now(), soNop: soNop, ds: ds }));
+    } catch (e) {}
+  }
+  function xoaNhoDiem(ma) {
+    try { localStorage.removeItem(KHOA_DIEM2 + ma); sessionStorage.removeItem('awc_diem_' + ma); } catch (e) {}
+  }
+
+  // Sổ lượt nộp của bài giao (1 lượt đọc, chỉ 2 trường). Trả SỐ, hoặc null khi bài
+  // giao chưa có trường / đọc hỏng — null nghĩa là "không biết", không phải 0.
+  function urlSoNop(ma) {
+    var db = CFG.AWORD_DB || {};
+    return 'https://firestore.googleapis.com/v1/projects/' + db.projectId +
+      '/databases/(default)/documents/assignments/' + encodeURIComponent(ma) +
+      '?key=' + db.apiKey + '&mask.fieldPaths=submitCount&mask.fieldPaths=lastSubmitAt';
+  }
+  function docSoNop(ma) {
+    return fetch(urlSoNop(ma), { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (d) { var f = (d && d.fields) || {}; return f.submitCount ? soF(f.submitCount) : null; })
+      ['catch'](function () { return null; });
+  }
+
+  // Liệt kê MỌI lượt của act rồi gộp — chính là đường đọc cũ (trước v1.74.0 nó nằm
+  // thẳng trong diemCuaAct), giữ nguyên từng dòng: phân trang 300, phanh 3 trang.
+  function lietKeScores(ma) {
+    return new Promise(function (xong, hong) {
+      var tatCa = [];
+      (function trang(token, lan) {
+        fetch(urlDiem(ma, token))
+          .then(function (r) {
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            return r.json();
+          })
+          .then(function (d) {
+            (d.documents || []).forEach(function (doc) {
+              var f = doc.fields || {};
+              tatCa.push({
+                id: String(doc.name || '').split('/').pop(),   // v1.131.0 — khớp `attemptId` của practiceLog
+                ten: (f.name && f.name.stringValue) || '?',
+                ma: (f.ma && f.ma.stringValue) || '',           // v1.134.0 — mã em (AWord Đợt 367, web gửi &ma=)
+                diem: soF(f.score), tong: soF(f.total), ms: soF(f.timeMs),
+                // `createdAt` = lúc nộp (mốc mili giây, AWord ghi bằng Date.now()).
+                // Dùng làm "nộp lúc" trong bảng cả lớp; thiếu thì coi như 0.
+                luc: soF(f.createdAt),
+              });
+            });
+            // Mỗi trang 300 lượt; quá 3 trang thì dừng — một bài giao của một
+            // lớp không thể tới 900 lượt, đây chỉ là phanh an toàn.
+            if (d.nextPageToken && lan < 3) trang(d.nextPageToken, lan + 1);
+            else xong(tatCa);
+          })
+          .catch(hong);
+      })(null, 1);
+    }).then(gopTotNhat);
+  }
+
+  // Trả về danh sách đã GỘP: mỗi em một dòng, lấy lượt TỐT NHẤT.
+  //   [{ ten, diem (0-100), giay, tho: {diem, tong} }]
+  // Ba luật gộp chép y hệt core/assignments.js bên AWord — đổi bên đó phải đổi
+  // cả đây: gộp theo tên thường-hoá · mỗi em lấy lượt tốt nhất · điểm cao trước,
+  // hoà thì ai nhanh hơn đứng trên.
+  function diemCuaAct(ma, epDocLai) {
+    ma = String(ma || '').trim();
+    if (!ma) return Promise.resolve([]);
+    if (epDocLai) { delete nhoDiem[ma]; xoaNhoDiem(ma); }
+    if (nhoDiem[ma]) return nhoDiem[ma];
+
+    var nho = epDocLai ? null : docNhoDiem(ma);
+    if (!nho) {
+      // Chưa có bản nhớ (hoặc bấm làm mới): liệt kê + hỏi sổ nộp song song, nhớ lại.
+      nhoDiem[ma] = Promise.all([lietKeScores(ma), docSoNop(ma)]).then(function (kq) {
+        ghiNhoDiem(ma, kq[0], kq[1]);
+        return kq[0];
+      });
+    } else {
+      // Có bản nhớ: hỏi sổ nộp (1 lượt nhỏ). Sổ không đổi (hoặc không biết) và bản
+      // nhớ chưa quá 10 phút ⇒ dùng lại; còn lại liệt kê như cũ.
+      nhoDiem[ma] = docSoNop(ma).then(function (so) {
+        var conTuoi = (Date.now() - (nho.luc || 0)) < TUOI_TOI_DA_MS;
+        if (conTuoi && (so === null || nho.soNop === so)) return nho.ds;
+        return lietKeScores(ma).then(function (ds) { ghiNhoDiem(ma, ds, so); return ds; });
+      });
+    }
+
+    // Đọc hỏng thì quên đi, để lần "làm mới" sau còn thử lại được.
+    nhoDiem[ma]['catch'](function () { delete nhoDiem[ma]; });
+    return nhoDiem[ma];
+  }
+
+  // ⭐⭐ v1.63.0 (05/09/2026) — MẪU SỐ CHUẨN CỦA CẢ ACT, KHÔNG PHẢI MẪU SỐ CỦA
+  // TỪNG LƯỢT. Đo thật trên act `4mmufy` (OPEN THE BOX, lớp NNTNG4, 175 lượt):
+  // bốn em làm ĐÚNG CẢ 30 CÂU vẫn bị chấm "chưa hoàn thành" vì kho ghi 30/31,
+  // 30/33 ⇒ 97%, 91%.
+  //
+  // ⛔ Vì sao: từ ĐỢT 265 của AWord (25/08/2026), bốn template CHO MỞ LẠI CÂU
+  // ĐÃ SAI — open-the-box · true-false · crossword · find-the-match — nộp
+  // `total` = SỐ LƯỢT ĐÃ TIÊU chứ không phải số câu (`rowTotal = review.length`,
+  // mở lại một ô là thêm một hàng). Đó là con số ĐÚNG cho màn tổng kết trong
+  // game ("đội ấy đã tiêu thêm một lượt cho câu đó" — thầy chốt ở Đợt 265b),
+  // nhưng sai với câu hỏi bên này: "em ấy đã đạt ĐIỂM TỐI ĐA chưa?".
+  //
+  // ⇒ Mẫu số để tính % là mẫu số NHỎ NHẤT act ấy từng ghi. Mẫu số chỉ PHỒNG LÊN
+  // khi có người mở lại câu, không bao giờ tụt xuống dưới số câu thật (ô chưa ai
+  // mở vẫn được đếm vào), nên nhỏ nhất = số câu thật. Đã đối chiếu với chính đề
+  // trong kho: `4mmufy` có đúng 30 câu, nhỏ nhất trong 175 lượt = 30.
+  //
+  // ⚠️ Game mẫu số CỐ ĐỊNH không đổi một ly: anagram (636 chữ cái), quiz,
+  // type-the-answer… mọi lượt cùng một `total` nên nhỏ nhất chính là nó. Đã đo
+  // cả 14 act đang chạy của 8 lớp trước và sau khi sửa, chỉ act OPEN THE BOX đổi.
+  // ⛔ ĐỪNG đổi sang mẫu số PHỔ BIẾN NHẤT hay LỚN NHẤT: lớn nhất là lượt sai
+  // nhiều nhất lớp, lấy nó thì không em nào đủ điểm nữa.
+  function mauChuan(ds) {
+    var m = 0;
+    ds.forEach(function (r) {
+      if (r.tong > 0 && (m === 0 || r.tong < m)) m = r.tong;
+    });
+    return m;
+  }
+
+  function gopTotNhat(ds) {
+    var theo = {};
+    var mau = mauChuan(ds);
+    ds.forEach(function (r) {
+      var k = khoaEm(r);                            // v1.134.0 — mã trước, tên (kể cả tên cũ) sau
+      if (!k) return;
+      var pt = mau > 0 ? Math.round(r.diem / mau * 100) : 0;
+      var cu = theo[k];
+      // ⭐ v1.131.0 — giữ MỌI lượt (`luot`) để hộp quản lý cộng tổng thời gian nộp
+      // (dashboard tab THỜI LƯỢNG); phần gộp "lượt tốt nhất" bên dưới không đổi.
+      var lu = { id: r.id || '', ms: r.ms || 0, luc: r.luc || 0, diem: r.diem, tong: r.tong };
+      if (!cu) {
+        theo[k] = { ten: r.ten, ma: r.ma || '', diem: pt, giay: Math.round((r.ms || 0) / 1000),
+                    luc: r.luc || 0, cacTen: [r.ten], luot: [lu],
+                    tho: { diem: r.diem, tong: r.tong } };
+        return;
+      }
+      cu.cacTen.push(r.ten); cu.luot.push(lu);
+      if (!cu.ma && r.ma) cu.ma = r.ma;
+      var g = Math.round((r.ms || 0) / 1000);
+      // Lượt NỘP ĐẦU TIÊN mới là mốc "em ấy nộp lúc mấy giờ" — em làm lại lần
+      // hai để lên điểm thì không vì thế mà thành người nộp muộn.
+      if (r.luc && (!cu.luc || r.luc < cu.luc)) cu.luc = r.luc;
+      if (pt > cu.diem || (pt === cu.diem && g < cu.giay)) {
+        cu.diem = pt; cu.giay = g; cu.tho = { diem: r.diem, tong: r.tong };
+      }
+    });
+    var ra = [];
+    for (var k in theo) { theo[k].ten = tenDepNhat(theo[k].cacTen); ra.push(theo[k]); }
+    ra.sort(function (a, b) {
+      if (b.diem !== a.diem) return b.diem - a.diem;
+      return a.giay - b.giay;
+    });
+    return ra;
+  }
+
+  // ---------- ⭐⭐ CHUẨN "ĐÃ XONG BÀI" = ĐỦ ĐIỂM TỐI ĐA (web v1.14.0) ----------
+  //
+  // Thầy chốt 24/08/2026: em nộp bài mà CHƯA đạt điểm tối đa thì thanh tiến
+  // trình trên thẻ lớp KHÔNG tính (13 em, 1 em 99/100 điểm ⇒ vẫn 0/13).
+  //
+  // ⛔⛔ "ĐIỂM TỐI ĐA" KHÔNG PHẢI LÚC NÀO CŨNG LÀ 100%. Kho điểm AWord chỉ có
+  // `score` + `total`, mà hai con số đó mang ý nghĩa khác nhau tuỳ template —
+  // đo thật trên bài B2-B ngày 24/08:
+  //
+  //   · ANAGRAM chế độ "bonus"/"bonusMinus" (MẶC ĐỊNH của template) chấm theo
+  //     CHỮ CÁI: `total` = tổng số chữ cái của cả bài (bài thật: 636), còn mỗi
+  //     từ giải ĐÚNG NGAY được ăn `số chữ × 2`. Chơi hoàn hảo ⇒ score = 2×total
+  //     = **200%**, chơi xong mà từ nào cũng sai một nhát ⇒ đúng 100%. Lấy
+  //     mốc 100% ở đây là gắn huy chương cho em làm sai khắp bài.
+  //     ("bonusMinus" đổi được hệ số nhân: `bonusMult`, mặc định 2, tối đa 20.)
+  //   · GAMESHOW chấm theo TỐC ĐỘ — không có mốc nào để so.
+  //   · Bật BẤT KỲ tuỳ chọn trừ điểm nào (`pointsOff` · `minusAmount` ·
+  //     `letterPenalty` · `timeCost`) thì `score` là số ĐÃ TRỪ, có thể âm.
+  //     Chép đúng danh sách khoá của `scoreIsPenalised()` bên AWord
+  //     (core/assignment-ui.js) — bên đó đổi thì đổi cả đây.
+  //
+  // ⇒ Hai trường hợp sau rơi về luật CŨ "nộp là xong" (`tru: true`), vì bắt
+  // một mốc trên con số vô nghĩa còn tệ hơn không bắt.
+  //
+  // Đọc `assignments/{mã}` qua REST công khai, CHỈ 2 trường (mask) nên gói tin
+  // vài trăm byte. ⚠️ Vẫn tốn 1 LƯỢT ĐỌC Firestore cho mỗi act, nên nhớ VĨNH
+  // VIỄN trong localStorage: tuỳ chọn của bài giao là bản chụp ĐÓNG BĂNG lúc
+  // tạo, không bao giờ đổi ⇒ mỗi máy chỉ đọc đúng một lần cho mỗi act.
+
+  // ⭐ v1.114.0 (16/09/2026) — khoá đệm đổi `awc_chuan_` → `awc_chuan2_`: bản ghi nay
+  // mang thêm `soCau` (xem `soCauTuDoc`), bản cũ trong localStorage không có ⇒ mỗi máy
+  // đọc lại đúng MỘT lần cho mỗi act rồi lại nhớ vĩnh viễn như trước.
+  var KHOA_CHUAN = 'awc_chuan2_';
+  var nhoChuan = {};
+  var TRU_KHOA = ['pointsOff', 'minusAmount', 'letterPenalty', 'timeCost'];
+  var CHUAN_LUI = { tru: true, dinh: 100, soCau: 0 };     // đọc hỏng -> giữ nếp cũ, không phạt em nào
+
+  function urlBaiGiao(ma) {
+    var db = CFG.AWORD_DB || {};
+    // v1.114.0 — đọc thêm `activity.content` để ĐẾM SỐ CÂU của đề (mẫu số khi em chưa làm).
+    // Gói tin to hơn (đề 50 câu ~ vài chục KB) nhưng vẫn chỉ MỘT lần cho mỗi act mỗi máy.
+    return 'https://firestore.googleapis.com/v1/projects/' + db.projectId +
+      '/databases/(default)/documents/assignments/' + encodeURIComponent(ma) +
+      '?key=' + db.apiKey +
+      '&mask.fieldPaths=activityType&mask.fieldPaths=activity.options&mask.fieldPaths=activity.content';
+  }
+
+  function ruotMap(f) { return (f && f.mapValue && f.mapValue.fields) || {}; }
+  function chuF(f) { return (f && f.stringValue) || ''; }
+  function mangF(f) { return (f && f.arrayValue && f.arrayValue.values) || []; }
+
+  // ⭐⭐ v1.114.0 (16/09/2026, thầy báo) — SỐ CÂU / ĐIỂM TỐI ĐA CỦA ĐỀ, tính từ nội dung
+  // bài giao — để thẻ hiện "0/40" đúng ngay cả khi CHƯA EM NÀO LÀM (trước đó lùi về
+  // `dinh` = 100 là thang PHẦN TRĂM, thẻ khóa học hiện "0/100" cho đề 40 câu).
+  // Luật CHÉP theo AWord: mảng câu = `content[itemsKey]` của từng template
+  // (`tpl.itemsKey`, dự phòng `ITEM_KEYS` của core/engine.js `playItemCount`), và mẫu số
+  // AWord nộp lên (`total`/`items`, xem core/scoring.js Đợt 294) lệch số câu ở hai chỗ:
+  //   · unjumble: chế độ bonus (mặc định) = 2 điểm/câu ⇒ ×2; "submit" = 1 điểm/câu.
+  //   · anagram: bonus/bonusMinus (mặc định) chấm theo CHỮ CÁI ⇒ tổng = số chữ cái
+  //     (không đếm dấu cách, đúng `prepareItem`); "submit" = 1 điểm/từ.
+  // Template không có mảng câu (running word, whack-a-mole…) ⇒ 0 ⇒ nơi hiển thị tự lùi.
+  // ⛔ AWord đổi cách nộp `total` của template nào thì sửa đúng hàm này.
+  var KHOA_MANG_CAU = { quiz: 'questions', gameshow: 'questions', maze_chase: 'questions',
+    true_false: 'statements', find_the_match: 'pairs', crossword: 'words' };
+  var MANG_CAU_DU_PHONG = ['items', 'questions', 'cards', 'words', 'statements', 'pairs'];
+  function soCauTuDoc(loai, act, opt) {
+    var content = ruotMap(act.content);
+    var k = KHOA_MANG_CAU[loai] || 'items';
+    if (!(content[k] && content[k].arrayValue)) {
+      k = null;
+      for (var i = 0; i < MANG_CAU_DU_PHONG.length; i++) {
+        if (content[MANG_CAU_DU_PHONG[i]] && content[MANG_CAU_DU_PHONG[i]].arrayValue) { k = MANG_CAU_DU_PHONG[i]; break; }
+      }
+    }
+    if (!k) return 0;
+    var ds = mangF(content[k]);
+    var n = ds.length;
+    if (loai === 'unjumble') return (chuF(opt.unjumbleMode) === 'submit') ? n : 2 * n;
+    if (loai === 'anagram' && chuF(opt.anagramMode) !== 'submit') {
+      var chuCai = 0;
+      ds.forEach(function (it) {
+        chuCai += String(chuF(ruotMap(it).word) || '').replace(/ /g, '').length;
+      });
+      return chuCai;
+    }
+    return n;
+  }
+
+  function chuanTuDoc(f) {
+    var loai = chuF(f.activityType);
+    var opt = ruotMap(ruotMap(f.activity).options);
+    var tru = (loai === 'gameshow');
+    for (var i = 0; i < TRU_KHOA.length && !tru; i++) {
+      if (soF(opt[TRU_KHOA[i]]) > 0) tru = true;
+    }
+    var dinh = 100;
+    if (!tru && loai === 'anagram') {
+      var che = chuF(opt.anagramMode) || 'bonus';       // mặc định của template
+      if (che === 'bonus') dinh = 200;                  // hệ số nhân cố định x2
+      else if (che === 'bonusMinus') {
+        // clampBonusMult() bên AWord: số nguyên 1..20, sai/thiếu thì về 2.
+        var n = Math.round(soF(opt.bonusMult));
+        dinh = 100 * (n >= 1 ? Math.min(20, n) : 2);
+      }
+      // "submit" = 1 điểm/từ ⇒ giữ 100.
+    }
+    var soCau = 0;
+    try { soCau = soCauTuDoc(loai, ruotMap(f.activity), opt); } catch (e) { soCau = 0; }
+    return { tru: tru, dinh: dinh, soCau: soCau };
+  }
+
+  // Trả về { tru, dinh } của một act. Không bao giờ reject.
+  function chuanDiem(ma) {
+    ma = String(ma || '').trim();
+    if (!ma) return Promise.resolve(CHUAN_LUI);
+    if (nhoChuan[ma]) return nhoChuan[ma];
+    try {
+      var cu = JSON.parse(localStorage.getItem(KHOA_CHUAN + ma) || 'null');
+      if (cu && typeof cu.dinh === 'number' && typeof cu.soCau === 'number') {
+        nhoChuan[ma] = Promise.resolve(cu);
+        return nhoChuan[ma];
+      }
+    } catch (e) {}
+
+    nhoChuan[ma] = fetch(urlBaiGiao(ma))
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        var c = chuanTuDoc(d.fields || {});
+        try { localStorage.setItem(KHOA_CHUAN + ma, JSON.stringify(c)); } catch (e) {}
+        return c;
+      })
+      .catch(function () {
+        delete nhoChuan[ma];            // quên đi để lần mở trang sau còn thử lại
+        return CHUAN_LUI;
+      });
+    return nhoChuan[ma];
+  }
+
+  // Em tên `ten` đã XONG act đó chưa (dsDiem là kết quả `diemCuaAct`, mỗi em
+  // đúng một dòng — lượt TỐT NHẤT). `chuan` thiếu thì lùi về "nộp là xong".
+  // ⇒ ĐỔI ĐỊNH NGHĨA "XONG" THÌ SỬA ĐÚNG HÀM NÀY: trang lớp, trang bài và
+  // dashboard đều gọi vào đây.
+  function xongAct(dsDiem, ten, chuan) {
+    var k = khoaTen(ten);
+    for (var i = 0; i < (dsDiem || []).length; i++) {
+      if (khoaEm(dsDiem[i]) !== k) continue;       // v1.134.0 — dòng điểm có `ma` thì khớp theo mã
+      if (!chuan || chuan.tru) return true;
+      return dsDiem[i].diem >= chuan.dinh;
+    }
+    return false;
+  }
+
+  function tenDepNhat(cac) {
+    return cac.slice().sort(function (a, b) {
+      var hoaA = (a.match(/[A-ZÀ-Ỹ]/g) || []).length;
+      var hoaB = (b.match(/[A-ZÀ-Ỹ]/g) || []).length;
+      if (hoaA !== hoaB) return hoaB - hoaA;
+      return b.length - a.length;
+    })[0] || '';
+  }
+
+  // ---------- một bài trong bai.json -> thẻ trên trang lớp ----------
+
+  // Các khối AWORD (loại `act`) của một bài — chính là các ô điểm trên thẻ.
+  function actCuaBai(b) {
+    return (b.khoi || []).filter(function (k) { return k.loai === 'act' && k.ma; });
+  }
+
+  // ⭐ v1.105.0 (15/09/2026, thầy chốt) — Các khối WORKSHEET (`loai:'ws'`, app
+  // v2.70.0 đẩy lên khi ô worksheet xen trong dòng act thường — KHÁC hẳn thẻ
+  // Loại WORKSHEET cả dòng, `dang==='WORKSHEET'`) của một bài — dùng để thêm
+  // hàng "SHEET" (chỉ tên, không thanh điểm) vào cuối dãy thanh tiến trình.
+  function wsCuaBai(b) {
+    return (b.khoi || []).filter(function (k) { return k.loai === 'ws' && k.ten; });
+  }
+  // ⭐ v1.130.0 (22/09/2026, thầy chốt) — WORKSHEET HIỆN TRÊN THẺ (hàng "SHEET"), MỘT LUẬT
+  // cho cả dashboard lẫn trang lớp:
+  //   · bài thường (không `cac`): mọi worksheet của bài;
+  //   · bài STAGE: chỉ worksheet THUỘC CHẶNG ĐANG MỞ (cùng `han` với chặng) + worksheet
+  //     CHƯA XẾP CHẶNG (không `han`) — y luật act: thẻ chỉ nói về chặng đang chạy.
+  // Trả về { ten, k (khối gốc), o (khoá ô của kho nộp `lessonNop`), soTrang }.
+  // ⭐ `o` = `k.o` app đẩy (v2.88+); THIẾU thì lùi về VỊ TRÍ KHỐI TRONG `b.khoi` — PHẢI cùng luật
+  // với `bai.html` (`k._vt`), vì trang em nộp ghi `lessonNop/<LỚP>__<bài>__<o>__<mã>` theo số đó.
+  // 🐛 v1.133.1 (22/09/2026): trước đây lùi về chỉ số TRONG DÃY WS (0,1,2…) ⇒ bài A1B_17.9_DICTS
+  // (ws đứng SAU act "WORD PRACTICE 1", đẩy từ app cũ chưa có `o`) 5 em nộp vào ô 1 mà dashboard
+  // hỏi ô 0 ⇒ "chưa em nào nộp". Bài có ws đứng đầu (0 = 0) không lộ nên bàn thử không bắt được.
+  function wsHienCuaThe(b, cac) {
+    var tatCa = [];
+    (b.khoi || []).forEach(function (k, vt) {
+      if (k.loai !== 'ws' || !k.ten) return;
+      tatCa.push({ ten: k.ten, k: k, o: (k.o != null && +k.o >= 0) ? +k.o : vt, soTrang: Math.max(1, +k.soTrang || 1) });
+    });
+    if (!cac || !cac.length) return tatCa;
+    var c = cac[changHien(cac)] || {};
+    var hanChang = String(c.han || '').trim();
+    return tatCa.filter(function (x) {
+      var han = String(x.k.han || '').trim();
+      return !han || han === hanChang;
+    });
+  }
+
+  // ⭐ v1.116.1 (17/09/2026) — Các khối BÀI NGHE (`loai:'audio'|'nghe'`, dạng
+  // DICTS) của một bài — mỗi khối mang `maNghe` (mã file mp3, dùng làm KHOÁ
+  // trong kho tiến độ nghe `lessonAudioTienDo`, xem `bai.html` + `dashboard.html`).
+  function ngheCuaBai(b) {
+    return (b.khoi || []).filter(function (k) {
+      return (k.loai === 'audio' || k.loai === 'nghe') && k.maNghe;
+    });
+  }
+
+  /* ==========================================================================
+     ⭐⭐ v1.76.0 — DẠNG BÀI **STAGE**: bài tập chia CHẶNG (thầy chốt 07/09/2026)
+
+     Một bài STAGE có nhiều act, mỗi act mang thêm trường `han` do app ghi ra.
+     Các act LIỀN NHAU CÙNG HẠN là MỘT CHẶNG (act cùng chặng làm song song).
+     Chặng sau chỉ mở khi **CẢ LỚP** xong chặng trước — không phải từng em.
+
+     Luật mở chặng (thầy chốt, đừng suy diễn lại):
+       · Chặng 1 mở ngay.
+       · Chặng k mở khi MỌI em (trừ em thầy bỏ qua) đã xong MỌI act của chặng k−1
+         VÀ đã tới mốc "hạn chặng k−1 trừ 12 tiếng". Xong sớm hơn thì đếm lùi tới
+         mốc đó rồi mở — thầy chốt "mở chặng 2 trong vòng 12 tiếng".
+       · Quá hạn chặng k−1 mà còn em chưa xong ⇒ chặng k KHÔNG mở, hiện tên các em
+         đó; các em ấy xong (hoặc thầy bỏ qua) thì mở ngay.
+       · Thầy bấm "Mở chặng kế" trên dashboard ⇒ `moChang` trong kho `lessonHan`.
+     ⛔ Đây là khoá GIAO DIỆN, không phải khoá bảo mật: em nào biết mã bài giao
+     vẫn mở thẳng AWord được. Thầy đã biết và chốt chấp nhận ở bản đầu.
+     ⛔ KHÔNG tốn thêm lượt đọc Firestore nào: điểm và kho `lessonHan` đều là thứ
+     trang đã đọc sẵn, ở đây chỉ tính thêm.
+     ========================================================================== */
+
+  var CHO_MO_MS = 12 * 60 * 60 * 1000;   // mở sớm nhất là 12 tiếng trước hạn chặng trước
+
+  function laBaiStage(b) {
+    return String((b && b.dang) || '').trim().toUpperCase() === 'STAGE';
+  }
+
+  // "2026-09-12T23:59" -> mốc ms theo giờ máy học sinh (cùng nếp `mocHan` của
+  // hạn bài: chuỗi không có múi giờ nên JS đọc theo giờ máy).
+  function mocActHan(han) {
+    var s = String(han || '').trim();
+    if (!s) return null;
+    var t = Date.parse(s);
+    return isNaN(t) ? null : t;
+  }
+
+  // Gom act của bài thành các chặng. Act KHÔNG có `han` nằm ở chặng số 0 =
+  // LUÔN MỞ (bài thường lẫn vào, hoặc act thầy chưa xếp chặng).
+  // ⭐ v1.121.0 (thầy chốt 21/09/2026) — MỤC CHẶNG = act có mã + khối NGHE/WORKSHEET mang `han`
+  // (app v2.90.0 đẩy `han` cho ô audio/worksheet của dòng STAGE). `acts` vẫn CHỈ act có mã (mọi phép
+  // xong/thiếu/thanh điểm ở lop/dashboard giữ nguyên); `muc` = đủ thành viên để trang bài vẽ/khoá.
+  function mucChangCuaBai(b) {
+    return (b.khoi || []).filter(function (k) {
+      if (k.loai === 'act') return !!k.ma;
+      return (k.loai === 'nghe' || k.loai === 'audio' || k.loai === 'ws') && !!String(k.han || '').trim();
+    });
+  }
+  function changCuaBai(b) {
+    var ds = mucChangCuaBai(b), ra = [], k = 0;
+    for (var i = 0; i < ds.length; i++) {
+      var han = String(ds[i].han || '').trim();
+      var laAct = ds[i].loai === 'act';
+      var cuoi = ra[ra.length - 1];
+      if (cuoi && cuoi.han === han) { cuoi.muc.push(ds[i]); if (laAct) cuoi.acts.push(ds[i]); continue; }
+      ra.push({ han: han, moc: mocActHan(han), acts: laAct ? [ds[i]] : [], muc: [ds[i]], so: 0 });
+    }
+    for (var j = 0; j < ra.length; j++) if (ra[j].han) ra[j].so = ++k;
+    return ra;
+  }
+
+  // Những em CHƯA xong hết act của một chặng.
+  // `lay` = { diem: function(ma){...}, chuan: function(ma){...} } — lấy từ bảng
+  // điểm trang đã đọc sẵn. `boQua` = mảng tên em thầy đã bỏ qua ở bài này.
+  function emChuaXongChang(chang, lay, caLop, boQua) {
+    var bo = {};
+    (boQua || []).forEach(function (t) { bo[khoaTen(t)] = 1; });
+    var thieu = [];
+    (caLop || []).forEach(function (ten) {
+      if (bo[khoaTen(ten)]) return;
+      for (var i = 0; i < chang.acts.length; i++) {
+        var ma = chang.acts[i].ma;
+        if (!xongAct(lay.diem(ma) || [], ten, lay.chuan(ma))) { thieu.push(ten); return; }
+      }
+    });
+    return thieu;
+  }
+
+  // Xét trạng thái MỌI chặng của một bài.
+  //   tt: 'xong' | 'dang' | 'ket' | 'cho' | 'xa'
+  //     xong = cả lớp đã xong chặng này
+  //     dang = chặng đang mở, còn em chưa xong, CHƯA quá hạn
+  //     ket  = chặng đang mở, còn em chưa xong, ĐÃ quá hạn (giữ cả lớp lại)
+  //     cho  = đủ điều kiện mở nhưng chưa tới mốc (đang đếm lùi tới `moLuc`)
+  //     xa   = chưa tới lượt
+  // opt = { boQua: [tên em], moChang: số chặng thầy ép mở, now: mốc ms,
+  //         moHet: bỏ qua MỌI khoá thời gian/chờ cả lớp — v1.82.0, xem dưới }
+  function xetChang(b, lay, caLop, opt) {
+    var o = opt || {};
+    var now = o.now || Date.now();
+    var epMo = +o.moChang || 0;
+    var cac = changCuaBai(b);
+    var moTiep = true;          // chặng đang xét có được mở không
+    for (var i = 0; i < cac.length; i++) {
+      var c = cac[i];
+      // v1.137.0 — bài STAGE: mỗi chặng chỉ trừ em thầy bỏ qua Ở CHẶNG ĐÓ (`boQuaChangCua` đã gồm `boQua` cũ).
+      c.thieu = emChuaXongChang(c, lay, caLop, (b && b.id && laBaiStage(b)) ? boQuaChangCua(b, c.so) : o.boQua);
+      c.caLopXong = c.thieu.length === 0;
+      c.quaHan = c.moc != null && now > c.moc;
+
+      // ⭐⭐ v1.82.0 — HỌC SINH ĐẶC BIỆT: "mở sẵn mọi chặng" (thầy chốt 09/09/2026),
+      // không chờ cả lớp lẫn không chờ mốc giờ mở — phụ huynh không theo kịp nhịp lớp.
+      // Đặt Ở ĐẦU vòng lặp (không phải nhánh `!c.so`): áp cho MỌI chặng, kể cả chặng
+      // có hạn.
+      if (o.moHet) { c.tt = 'dang'; c.mo = true; continue; }
+
+      // Chặng KHÔNG có hạn (so = 0) luôn mở, không chặn chặng sau.
+      if (!c.so) { c.tt = c.caLopXong ? 'xong' : 'dang'; c.mo = true; continue; }
+
+      var epMoNay = epMo >= c.so;
+      if (!moTiep && !epMoNay) {
+        // Chặng trước chưa xong: chặng này chờ. Chờ vì hết giờ mà còn người
+        // (chặng trước 'ket') thì web hiện tên các em đó ở CHÍNH chặng trước.
+        c.tt = 'xa'; c.mo = false;
+        continue;
+      }
+      // Đủ điều kiện về "chặng trước đã xong" — còn phải tới mốc mở.
+      var truoc = i > 0 ? cac[i - 1] : null;
+      var moLuc = (truoc && truoc.moc != null) ? (truoc.moc - CHO_MO_MS) : null;
+      c.moLuc = moLuc;
+      if (!epMoNay && moLuc != null && now < moLuc) {
+        c.tt = 'cho'; c.mo = false;
+        moTiep = false;          // chặng sau nữa chắc chắn chưa tới lượt
+        continue;
+      }
+      c.mo = true;
+      c.tt = c.caLopXong ? 'xong' : (c.quaHan ? 'ket' : 'dang');
+      if (!c.caLopXong) moTiep = false;   // chưa xong thì chặng sau chưa mở
+    }
+    return cac;
+  }
+
+  // Chặng ĐANG MỞ mới nhất (chặng học sinh đang phải làm). Xong hết thì trả
+  // chặng cuối cùng để thẻ vẫn có gì mà hiện.
+  function changHien(cac) {
+    var i = -1;
+    for (var k = 0; k < cac.length; k++) if (cac[k].mo) i = k;
+    return i < 0 ? 0 : i;
+  }
+
+  // ⭐⭐ v1.118.0 (thầy chốt 19/09/2026) — CHẶNG "CHỜ MỞ KHÓA": chặng đang chạy
+  // CÒN em chưa xong VÀ còn chặng sau để mở. Trả về chính chặng đó, không thì null.
+  // ⛔ CỐ Ý KHÔNG xét giờ ở đây: đồng hồ mỗi giây (`nhipDongHo`/`veDongHo` ở ba
+  // trang) tự quyết "đã quá hạn hay chưa" — chặng tới hạn trong lúc em đang mở
+  // trang thì ô hạn đổi sang CHỜ MỞ KHÓA ngay giây đó, không phải chờ vẽ lại thẻ.
+  // Bên gọi chỉ hỏi thêm `c.quaHan` khi cần quyết ngay lúc vẽ (bìa READY).
+  // Chặng CUỐI quá hạn thì KHÔNG phải "chờ mở khoá" (không còn gì để mở) — vẫn
+  // HẾT HẠN như cũ (thầy chốt).
+  function changChoMo(cac) {
+    if (!cac || !cac.length) return null;
+    var i = changHien(cac), c = cac[i];
+    if (!c || !c.so || i >= cac.length - 1) return null;
+    return (c.thieu && c.thieu.length) ? c : null;
+  }
+
+  // ⭐⭐ v1.128.0 (thầy chốt 21/09/2026) — CHẶNG CŨ CÒN EM CHƯA XONG: thầy bấm
+  // "Mở chặng X ngay" trên dashboard ⇒ `changHien` nhảy sang chặng kế, nhưng chặng
+  // trước vẫn còn em thiếu bài. Trước đây trang bài ẨN HẲN chặng đó (chỉ vào lại
+  // qua thanh chặng) ⇒ em không thấy ai còn thiếu. Trả về MẢNG các chặng ĐÃ MỞ
+  // đứng TRƯỚC chặng đang chạy mà còn `thieu` (chặng 0 không hạn không tính).
+  // Bên gọi (bai.html) vẽ các chặng này ĐẦY ĐỦ (bìa + bảng xếp hạng) phía trên
+  // chặng đang chạy; bìa READY của act thuộc chặng này vẫn hỏi `c.quaHan`.
+  function changCuConThieu(cac) {
+    if (!cac || !cac.length) return [];
+    var hien = changHien(cac), ra = [];
+    for (var i = 0; i < hien; i++) {
+      var c = cac[i];
+      if (c && c.so && c.mo && c.thieu && c.thieu.length) ra.push(c);
+    }
+    return ra;
+  }
+
+  // Mã lesson để in trên thẻ. App sinh tiêu đề theo khuôn cũ của thầy:
+  //   "B2B_21.8_DICTS LSFLY-S1.T3.P1-2-3"  =  LỚP_NGÀY_DẠNG + mã lesson
+  // ⇒ phần sau dấu cách đầu tiên chính là mã lesson.
+  // (Từ Đợt 2 app sẽ đẩy thẳng trường `maLesson`, có thì lấy luôn.)
+  function maLesson(b) {
+    if (b.maLesson) return b.maLesson;
+    var t = String(b.tieuDe || b.tenHien || '');
+    // ⛔ ĐỪNG cắt ở dấu cách ĐẦU TIÊN: có dạng bài tên HAI CHỮ ("SP SLIDE",
+    // "SP CHECK") nên tiêu đề thành "B2B_26.8_SP SLIDE DS-S2.I1.W1" — cắt kiểu
+    // đó ra "SLIDE DS-S2.I1.W1", sai. Cắt theo đúng CHỮ DẠNG rồi lấy phần sau.
+    var d = String(b.dang || '').trim();
+    if (d) {
+      var i = t.toUpperCase().indexOf(d.toUpperCase());
+      if (i >= 0) return t.slice(i + d.length).trim();
+    }
+    var j = t.indexOf(' ');
+    return j > 0 ? t.slice(j + 1).trim() : '';
+  }
+
+  // ---------- TÊN DẠNG BÀI HỌC SINH NHÌN THẤY (⭐ v1.14.0, thầy chốt 24/08/2026) ----------
+  //
+  // `b.dang` là MÃ NỘI BỘ thầy gõ ở ô Loại bên app myLesson (WORDS · DICTS ·
+  // RD · SP SLIDE · SP CHECK). Học sinh thì đọc tên KỸ NĂNG. Bảng dưới là chỗ
+  // DUY NHẤT đổi chữ — thẻ trang lớp, tiêu đề trang bài, tab trình duyệt và
+  // dashboard đều đi qua `tenBai()`.
+  //
+  // ⛔ CHỈ ĐỔI CHỮ HIỆN RA, KHÔNG đổi `b.dang` trong dữ liệu: `trangCuaBai()`
+  // và `maLesson()` ngay dưới đây đều tra theo mã cũ, app myLesson cũng sinh
+  // `id`/`tieuDe` từ đúng mã đó. Đổi trong bai.json là mọi bài cũ mất đường về.
+  var TEN_DANG = {
+    'WORDS': 'VOCABULARY',
+    'DICTS': 'LISTENING SKILL',
+    'RD': 'READING SKILL',
+    'READING': 'READING SKILL',
+    'SP': 'SPEAKING SKILL',
+    'SP SLIDE': 'SPEAKING SKILL',
+    'SP CHECK': 'SPEAKING CHECK',
+    // v1.76.0 — dạng bài chia chặng: thầy chốt giữ nguyên chữ STAGE
+    'STAGE': 'STAGE',
+    // ⭐ v1.88.0 (10/09/2026) — WORKSHEET: chỉ bài giấy, không act nào. Card tự
+    // dựng tiêu đề riêng (`veWorksheetChu` bên lop.html) nên đây chỉ là lưới an
+    // toàn nếu `tenBai()` phải lùi về tên dạng ở chỗ khác (vd Kho bài).
+    'WORKSHEET': 'WORKSHEET'
+  };
+  function tenDang(d) {
+    var k = String(d || '').trim().toUpperCase().replace(/\s+/g, ' ');
+    return TEN_DANG[k] || k;
+  }
+
+  // Thầy đã gõ tên riêng cho bài chưa (ô "tên bài" trên thanh bản nháp của app)?
+  // ⛔ Dashboard dùng hàm này để in "(chưa đặt tên)". TRƯỚC v1.14.0 nó so
+  // `tenBai(b) === b.dang`; nay `tenBai()` trả tên KỸ NĂNG nên phép so đó luôn
+  // sai ⇒ bài chưa đặt tên sẽ hiện "VOCABULARY" y như tên thầy tự gõ.
+  function coTenRieng(b) {
+    return !!String((b && b.tenBai) || '').trim();
+  }
+
+  // Tên thẻ học sinh nhìn thấy: thầy gõ gì thì lấy nấy, chưa gõ thì lấy tên
+  // KỸ NĂNG suy từ dạng bài.
+  function tenBai(b) {
+    if (coTenRieng(b)) return b.tenBai;
+    return tenDang(b && b.dang) || 'BÀI TẬP';
+  }
+
+  // ⭐ v1.103.0 (15/09/2026) — TIÊU ĐỀ CÁC WORKSHEET của một bài, theo đúng thứ
+  // tự ô thầy xếp trong app. App myLesson v2.70.0 đẩy mỗi ô worksheet thành
+  // một khối `{loai:'ws', ten}` trong `b.khoi` (chỉ TÊN — không có đường dẫn
+  // file). Bài WORKSHEET đẩy TRƯỚC v2.70.0 (v2.48.0, `khoi` rỗng) thì lùi về
+  // `tenBai` (hồi đó là dòng "BT ở lớp"). Trả về mảng — thẻ tự nối.
+  // ⛔ Dùng ở `lop.html` + `dashboard.html` (thẻ WORKSHEET: "EM HÃY HOÀN THÀNH
+  // BÀI TẬP <tên>!"). `bai.html` cố ý BỎ QUA khối `ws` (không có gì để làm).
+  function tenWorksheet(b) {
+    var ds = (b && b.khoi || []).filter(function (k) {
+      return k && k.loai === 'ws' && String(k.ten || '').trim();
+    }).map(function (k) { return String(k.ten).trim(); });
+    if (ds.length) return ds;
+    var t = String((b && b.tenBai) || '').trim();
+    return t ? [t] : [];
+  }
+
+  // Nhãn ngắn của MỘT ô bài trên thanh tiến trình của thẻ lớp (thầy chốt
+  // 24/08/2026): "WORD PRACTICE 1" -> "WORDS 1", "PRONUNCIATION" giữ nguyên.
+  //
+  // ⛔ CHỈ đổi chỗ HIỆN RA. Tên thật của ngăn vẫn là "WORD PRACTICE 1": app
+  // myLesson SUY NGƯỢC loại ô ra từ chính chuỗi đó (`tdLoaiCua()`) để đánh số
+  // lại mỗi lần vẽ, và tên bài giao bên AWord cũng rút gọn từ nó. Đổi trong dữ
+  // liệu là hỏng cả hai chỗ.
+  //
+  // ⭐ v1.15.0 — THÊM cờ `ngan`: rút gọn thêm "PRONUNCIATION" -> "PRONUNC"
+  // (thầy chốt 25/08/2026). CHỈ trang lớp (`lop.html`) bật cờ này — chữ đó dài
+  // gấp rưỡi "WORDS 1" nên cột tên của thanh tiến trình phải nới rộng theo, ăn
+  // mất chỗ của chính thanh. Trang bài tập rộng rãi hơn ⇒ GIỮ NGUYÊN chữ đầy
+  // đủ (thầy chốt: "trong trang bài tập lớp thì không cần rút ngắn như vậy").
+  // ⛔ Đừng rút gọn thẳng trong nhánh không cờ: cả 3 trang gọi chung hàm này.
+  function tenO(t, ngan) {
+    var s = String(t == null ? '' : t).trim();
+    var m = /^WORD\s+PRACTICE\s*(\d*)$/i.exec(s);
+    if (m) return 'WORDS' + (m[1] ? ' ' + m[1] : '');
+    if (ngan && /^PRONUNCIATION$/i.test(s)) return 'PRONUNC';
+    return s;
+  }
+
+  // Hạn nộp, trả về mốc thời gian (ms) hoặc null.
+  //  · Đợt 2 trở đi: `b.han` = "YYYY-MM-DDTHH:mm" (thầy gõ giờ thật).
+  //  · Đợt 1: chưa có giờ ⇒ lấy NGÀY BUỔI HỌC (`b.ngay` = "9.6") + năm suy từ
+  //    `taoLuc`, tính tới CUỐI NGÀY hôm đó. Không có gì để suy thì trả null và
+  //    ô hạn hiện "Chưa đặt hạn" — thà để trống còn hơn bịa một giờ.
+  function mocHan(b) {
+    // ⭐ v1.20.0 — qua `hanCua()`: hạn sửa ở dashboard đứng trước `b.han` của
+    // `bai.json`. Chưa sửa thì `hanCua()` chính là `b.han` — y hệt lối cũ.
+    var hh = hanCua(b);
+    if (hh) {
+      var t = Date.parse(hh);
+      if (!isNaN(t)) return t;
+    }
+    var m = /^(\d{1,2})\.(\d{1,2})$/.exec(String(b.ngay || '').trim());
+    if (!m) return null;
+    var nam = (String(b.taoLuc || '').match(/^(\d{4})/) || [])[1];
+    if (!nam) nam = String(new Date().getFullYear());
+    var d = new Date(Number(nam), Number(m[2]) - 1, Number(m[1]), 23, 59, 59);
+    return isNaN(d.getTime()) ? null : d.getTime();
+  }
+
+  // Chữ trên ô hạn: có giờ thì "17:30 · 19/8", chỉ có ngày thì "19/8".
+  function chuHan(b) {
+    var t = mocHan(b);
+    if (t == null) return '';
+    var d = new Date(t);
+    var ngay = d.getDate() + '/' + (d.getMonth() + 1);
+    if (!hanCua(b)) return ngay;                   // Đợt 1: chỉ có ngày
+    var hai = function (n) { return (n < 10 ? '0' : '') + n; };
+    return hai(d.getHours()) + ':' + hai(d.getMinutes()) + ' · ' + ngay;
+  }
+
+  // ⭐⭐ v1.85.0 (thầy chốt 09/09/2026) — CHỮ HẠN CHẶNG, dùng chung cho thẻ
+  // STAGE ở trang lớp VÀ ô hạn ở đầu trang bài (trước đây trang bài chỉ có
+  // MỘT bản chép ở `lop.html`, trang bài hiện hạn CHUNG CHUNG của cả bài —
+  // sai với dạng STAGE, nơi mỗi chặng một hạn riêng). "2026-09-13T23:59" ->
+  // "23:59 • 13/9".
+  function chuHanChang(han) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(String(han || '').trim());
+    return m ? (m[4] + ':' + m[5] + ' • ' + (+m[3]) + '/' + (+m[2])) : '';
+  }
+
+  // Dạng bài -> trang nào mở ra khi bấm vào thẻ.
+  function trangCuaBai(b) {
+    var d = String(b.dang || '').toUpperCase();
+    if (d.indexOf('SP CHECK') >= 0) return '';     // thẻ speaking check: đi đường riêng
+    // ⭐ v1.88.0 — WORKSHEET: chỉ là thẻ nhắc bài giấy, không có trang bài tập
+    // nào để mở. `dungCot()` bên lop.html đã có sẵn nhánh báo "giao trên giấy"
+    // cho mọi thẻ thiếu `trang` — không cần code thêm gì ở đó.
+    if (d === 'WORKSHEET') return '';
+    if (d.indexOf('SP') === 0 || d.indexOf('SLIDE') >= 0) return 'bai-sp.html';
+    return 'bai.html';
+  }
+
+  /* ============================================================
+     ⭐ v1.37.0 (02/09/2026) — AVATAR DÙNG CHUNG CHO MỌI CHỖ
+
+     Ảnh đại diện của em CHỈ CÓ MỘT NGUỒN: `assets/avatar/<lớp>/<tên>.jpg`
+     — thầy đổi ở dashboard → Thiết lập lớp (nút ✎), app nén 96px rồi đẩy
+     lên kho web. Khung chat đã dùng đường này từ lâu; từ v1.37.0 thanh đầu
+     và đầu sidebar của cả 3 trang học sinh cũng dùng ĐÚNG đường này ⇒ đổi
+     một chỗ là mọi chỗ đổi theo.
+
+     ⛔ Luật slug PHẢI Y HỆT 4 nơi kia, sai một ký tự là ảnh 404 câm lặng:
+        `app/tools/xuat-avatar.py` · `app/src/main/lib/avatar.js` ·
+        khối avatar trong `dashboard.html` · `avatarUrl()` bên mySpeaking web.
+        Bỏ dấu · LỚP bỏ mọi ký tự không phải chữ-số ("B2-B" → "b2b") ·
+        TÊN thay ký tự lạ bằng "-" ("DUY MINH" → "duy-minh").
+
+     ⏳ Đổi ảnh xong máy em có thể còn thấy ảnh CŨ tối đa ~10 phút (GitHub
+        Pages cho trình duyệt nhớ ảnh 600 giây). Muốn "đổi là thấy ngay"
+        thì phải ghi thêm mốc thời gian bên app — để đợt sau.
+     ============================================================ */
+  function avKhongDau(s) {
+    return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase();
+  }
+  function avSlugLop(s) { return avKhongDau(s).replace(/[^a-z0-9]/g, '') || 'lop'; }
+  function avSlugTen(s) {
+    return avKhongDau(s).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'hs';
+  }
+  // `lop` ở đây là TÊN GỐC có gạch ("B2-B"), không phải mã đã bỏ gạch.
+  function avUrl(lop, ten) {
+    return 'https://andrewclasses.com/assets/avatar/' + avSlugLop(lop) + '/' + avSlugTen(ten) + '.jpg';
+  }
+
+  // Gắn ẢNH + CHỮ TẮT vào một ô avatar ĐÃ CÓ SẴN thẻ con (huy hiệu số sao,
+  // chấm đỏ tin mới). ⛔ Đừng dùng `el.textContent = …` cho mấy ô này: nó
+  // xoá sạch thẻ con — đúng cái bẫy làm mất huy hiệu sao ở bản nháp đầu.
+  // Chưa có ảnh cho em nào thì thẻ <img> tự gỡ mình ⇒ hiện chữ tắt như cũ.
+  function gaAvatar(el, lop, ten, chuTat, khongAnh) {
+    if (!el) return;
+    Array.prototype.slice.call(el.childNodes).forEach(function (n) {
+      if (n.nodeType === 3) el.removeChild(n);
+    });
+    // ⭐⭐ v1.83.0 (thầy chốt 09/09/2026, ca thật) — HỌC SINH ĐẶC BIỆT: không có ảnh,
+    // và việc tra "tên gọi ngắn" (`avTenDayDu` ngay dưới, VÀ `deAvatarKho` chạy NGẦM
+    // theo dõi cả trang) có thể khớp NHẦM sang bạn cùng lớp trùng một phần tên — đo
+    // được thật: "NGUYỄN HẢI" (tên phụ huynh tự gõ) bị khớp thành "NGUYỄN THẾ HẢI"
+    // (bạn cùng lớp), hiện ảnh của bạn đó lên. `khongAnh=true` bỏ HẲN mọi tra cứu:
+    // không `avUrl()`/`avTenDayDu()`, và QUAN TRỌNG NHẤT — KHÔNG đặt `data-av-em`/
+    // `data-av-lop` (thiếu hai thuộc tính này thì `deAvatarKho()` không bao giờ chọn
+    // trúng ô này để đè ẢNH SỐNG lên sau, dù nó quét lại toàn trang liên tục). Chỉ
+    // còn icon tròn + chữ viết tắt, đúng như em chưa có ảnh.
+    if (khongAnh) {
+      var imgCu = el.querySelector('img.av-anh');
+      if (imgCu) imgCu.remove();
+      if (chuTat) el.insertBefore(document.createTextNode(chuTat), el.firstChild);
+      return;
+    }
+    // ⭐ v1.58.0 — tin nhắn cũ còn mang TÊN GỌI NGẮN của người gửi; tra tên đầy đủ theo
+    // danh sách lớp đang theo dõi (`batAvatarKho` đã nạp) trước khi dựng URL lớp nền.
+    if (avDs && avDs.length && avSlugLop(avLop) === avSlugLop(lop)) ten = avTenDayDu(ten, avDs);
+    var img = el.querySelector('img.av-anh');
+    if (!img) {
+      img = document.createElement('img');
+      img.className = 'av-anh';
+      img.alt = '';
+      img.onerror = function () { if (img.parentNode) img.parentNode.removeChild(img); };
+      // Chèn LÊN ĐẦU: mọi thẻ con khác (huy hiệu sao, chấm đỏ) vẽ sau ⇒ nằm
+      // trên ảnh. Ảnh chèn cuối là nó đè mất huy hiệu.
+      el.insertBefore(img, el.firstChild);
+    }
+    var url = avUrl(lop, ten);
+    if (img.getAttribute('src') !== url) img.setAttribute('src', url);
+    if (chuTat) el.insertBefore(document.createTextNode(chuTat), el.firstChild);
+    // ⭐ v1.55.0 — đánh dấu ô này là của em nào, để `deAvatarKho()` tìm lại mà đè
+    // ảnh mới nhất từ kho. ⛔ Đánh dấu lên Ô chứ KHÔNG lên thẻ <img>: ảnh thiếu thì
+    // `onerror` ngay trên kia GỠ HẲN thẻ <img>, đánh dấu lên đó là mất luôn manh mối
+    // của đúng những em đang cần cứu nhất.
+    el.setAttribute('data-av-em', ten);
+    el.setAttribute('data-av-lop', lop);
+  }
+
+  /* ============================================================
+     ⭐ v1.55.0 (03/09/2026) — ẢNH ĐẠI DIỆN LẤY TỪ KHO, NEO THEO MÃ SỐ EM
+
+     VÌ SAO CÓ KHỐI NÀY — sự cố 02/09/2026: myStudent đổi tên 64 em từ tên gọi
+     ngắn sang tên đầy đủ ("THƯ" → "MINH THƯ"); `lop.json` đồng bộ theo sau 9
+     giây, nhưng file ảnh đặt tên THEO TÊN nên 48 em mất ảnh, câm lặng.
+     👉 Ảnh không được neo vào TÊN (đổi được) mà neo vào MÃ SỐ EM (không đổi,
+        kể cả khi em chuyển lớp).
+
+     HAI LỚP, thầy chốt 03/09:
+       ① LỚP NỀN — file tĩnh `assets/avatar/<lop>/<ten>.jpg` như cũ. Hiện NGAY
+          lúc mở trang, trình duyệt còn nhớ được giữa các phiên.
+       ② ĐÈ LÊN — kho `lessonAvatar/{lop-slug}`, MỘT tài liệu cho cả lớp, ảnh
+          xếp theo mã số em. Gọi SAU khi trang vẽ xong (nếp "đẩy sẵn + đổ sau"),
+          nên không làm chậm lúc mở trang — thứ vừa được tối ưu ở v1.54.x.
+
+     💸 Tiền: 1 lượt đọc cho CẢ LỚP (LUẬT 8), cộng đệm (v1.59.0: đệm sống qua các
+        phiên, xem khối ngay dưới). ⛔ Đừng tách mỗi em một tài liệu: 154 em × mấy
+        lượt mỗi ngày là đốt hạn mức của cả cụm.
+     ============================================================ */
+  /* ⭐⭐ v1.59.0 (04/09/2026) — ĐỆM ẢNH SỐNG QUA CÁC PHIÊN, HỎI MỐC TRƯỚC KHI TẢI
+     Đo thật 04/09 trên kho đang chạy: gói ảnh một lớp nặng 33–62 KB (147 em / 10 lớp).
+     Bản v1.55.0 đệm bằng `sessionStorage` hạn 10 phút ⇒ ĐÓNG TAB LÀ MẤT SẠCH, mở lại
+     tải trọn 52 KB dù cả tuần không em nào đổi ảnh. Nay:
+       ① `localStorage` — ảnh sống qua các lần đóng/mở trình duyệt.
+       ② Quá hạn kiểm thì KHÔNG tải trọn gói ngay, mà hỏi RIÊNG mốc `luc` bằng
+          `?mask.fieldPaths=luc` — đo được **254 byte** thay vì 57.869 byte (nhẹ 99,6%).
+          Mốc giống bản trong máy ⇒ dùng luôn ảnh cũ, không tải gì thêm.
+     💸 ⛔ SỐ LƯỢT ĐỌC KHÔNG ĐỔI — Firestore tính tiền theo TÀI LIỆU, hỏi mốc hay hỏi
+        trọn gói đều là 1 lượt (LUẬT 8). Cái tiết kiệm là BĂNG THÔNG của học sinh và
+        tốc độ hiện ảnh, đừng nhầm thành tiết kiệm hạn mức.
+     ⛔ Mốc `luc` do `app/src/main/lib/avatar-kho.js` ghi CÙNG lượt ghi `em` — đã tra,
+        không có đường nào ghi ảnh mà quên đổi mốc. Vẫn để hạn cứng 24 giờ làm lối thoát.
+     ⛔ KHOÁ MỚI `awc_av2` (bản cũ `awc_av1` nằm ở sessionStorage, để nguyên cho chết
+        theo tab): trùng khoá là bản mới đọc phải hình dạng cũ (không có `kiem`/`tai`). */
+  var AV_KIEM_GIAY = 600;           // trong 10 phút: tin thẳng ảnh trong máy, không hỏi mạng
+  var AV_HAN_GIAY = 86400;          // quá 24 giờ: tải lại trọn gói dù mốc có vẻ giống
+  var KHOA_AV = 'awc_av2';
+  // ⛔⛔ CHỐT CHỐNG HỎI LẠI LIÊN TỤC (bắt được lúc chạy thử 03/09, trước khi dán luật).
+  // Luật chung của dự án là CHỈ ĐỆM KHI ĐỌC ĐƯỢC THẬT — nhưng `deAvatarKho()` được
+  // `batAvatarKho()` gọi lại sau MỖI lượt trang vẽ thêm ô. Kho đang 403 (luật chưa dán)
+  // hay mất mạng thì không có gì để đệm ⇒ mỗi lượt vẽ lại bắn thêm một lượt hỏi kho.
+  // Đo được 5 lượt 403 chỉ trong 3 giây đầu mở trang. Nên nhớ RIÊNG mốc hỏng và im
+  // lặng 60 giây — vẫn không đệm nội dung rỗng, chỉ đệm cái sự "vừa hỏi hụt".
+  var AV_HONG = {};
+  var AV_HONG_GIAY = 60;
+  // Nhớ trong RAM: đồng hồ đếm ngược đổi chữ mỗi giây ⇒ MutationObserver bắn ⇒ hàm này
+  // được gọi ~1 lần/giây. Không có bản RAM thì mỗi giây lại đọc + parse 52 KB localStorage.
+  var AV_RAM = {};
+  // Lượt hỏi ĐANG BAY của từng lớp. Thiếu chốt này thì lượt vẽ thứ hai (250ms sau lượt
+  // đầu) bắn thêm một lượt hỏi nữa trước khi lượt đầu về ⇒ trả tiền 2 lượt đọc cho
+  // đúng một tài liệu. Đã thấy thật lúc mở trang lần đầu.
+  var AV_BAY = {};
+
+  // Còn trong hạn không? Đồng hồ máy lệch về TƯƠNG LAI cũng coi như hết hạn (hiệu số âm)
+  // — thà hỏi lại một lượt còn hơn đóng băng ảnh cũ vĩnh viễn trên máy đó.
+  function avConHan(moc, giay) {
+    if (typeof moc !== 'number') return false;
+    var d = Date.now() - moc;
+    return d >= 0 && d < giay * 1000;
+  }
+
+  // Bản đang giữ trong máy: { luc, kiem, tai, em }. `luc` = mốc của KHO (do app đóng),
+  // `kiem` = lần cuối đối chiếu mốc, `tai` = lần cuối tải trọn gói.
+  function docAvatarMay(slug) {
+    if (AV_RAM[slug]) return AV_RAM[slug];
+    try {
+      var o = JSON.parse(localStorage.getItem(KHOA_AV + ':' + slug) || 'null');
+      if (o && o.em && typeof o.em === 'object') { AV_RAM[slug] = o; return o; }
+    } catch (e) {}
+    return null;
+  }
+
+  function ghiAvatarMay(slug, o) {
+    AV_RAM[slug] = o;
+    var chuoi;
+    try { chuoi = JSON.stringify(o); } catch (e) { return; }
+    try { localStorage.setItem(KHOA_AV + ':' + slug, chuoi); return; } catch (e) {}
+    // Hết chỗ (thầy mở đủ 10 lớp ≈ 520 KB, hoặc trang khác đã chiếm): dọn ảnh của các
+    // lớp KHÁC rồi thử lại đúng MỘT lần. Vẫn hỏng thì thôi — bản RAM ở trên vẫn chạy
+    // tốt cho phiên này, chỉ là lần mở sau phải tải lại.
+    try {
+      for (var i = localStorage.length - 1; i >= 0; i--) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf(KHOA_AV + ':') === 0 && k !== KHOA_AV + ':' + slug)
+          localStorage.removeItem(k);
+      }
+      localStorage.setItem(KHOA_AV + ':' + slug, chuoi);
+    } catch (e) {}
+  }
+
+  // Bóc `em` + `luc` từ một tài liệu Firestore đã json hoá.
+  function avBoc(j) {
+    var em = {}, f = (j.fields && j.fields.em && j.fields.em.mapValue
+                      && j.fields.em.mapValue.fields) || {};
+    for (var id in f) {
+      var g = (f[id].mapValue && f[id].mapValue.fields) || {};
+      var a = g.a && g.a.stringValue;
+      if (!a) continue;
+      em[id] = { t: (g.t && g.t.stringValue) || '', a: a };
+    }
+    return { em: em, luc: avMoc(j) };
+  }
+
+  // Mốc `luc` của kho. 404 (lớp chưa từng được đẩy ảnh) trả 0 — và bản trong máy của
+  // lớp đó cũng mang `luc: 0`, nên hai bên khớp nhau, không tải lại vô ích.
+  function avMoc(j) {
+    var v = j && j.fields && j.fields.luc;
+    return (v && (Number(v.integerValue || v.doubleValue) || 0)) || 0;
+  }
+
+  // Trả { "<id>": { t: tên, a: base64 } } của một lớp; {} nếu kho im lặng.
+  function napAvatarKho(lopGoc) {
+    // ⛔ CẢ THÂN HÀM TRONG try — `fetch()` ném ngay tại chỗ khi URL hỏng, cú ném đó
+    // xuyên qua mọi `.catch()` phía dưới (đã trả giá ở `napHanSua`).
+    try {
+      var db = CFG.AWORD_DB || {};
+      if (!db.projectId || !db.apiKey || !lopGoc) return Promise.resolve({});
+      var slug = avSlugLop(lopGoc);
+      var cu = docAvatarMay(slug);
+
+      // ① Vừa kiểm trong 10 phút — dùng thẳng, không đụng tới mạng.
+      if (cu && avConHan(cu.kiem, AV_KIEM_GIAY)) return Promise.resolve(cu.em);
+      // ② Kho vừa hỏi hụt — im 60 giây. Có bản cũ thì vẫn xài (ảnh cũ hơn hẳn không ảnh).
+      if (AV_HONG[slug] && avConHan(AV_HONG[slug], AV_HONG_GIAY))
+        return Promise.resolve(cu ? cu.em : {});
+      // ③ Đang có lượt hỏi bay — bám vào nó, đừng bắn thêm lượt đọc thứ hai.
+      if (AV_BAY[slug]) return AV_BAY[slug];
+
+      var goc = 'https://firestore.googleapis.com/v1/projects/' + db.projectId
+              + '/databases/(default)/documents/lessonAvatar/' + encodeURIComponent(slug)
+              + '?key=' + encodeURIComponent(db.apiKey);
+
+      // Tải TRỌN GÓI (~52 KB) — chỉ khi chưa có gì trong máy, quá 24 giờ, hoặc mốc đã đổi.
+      var taiDu = function () {
+        return fetch(goc, { cache: 'no-store' })
+          .then(function (r) {
+            // 404 = lớp chưa từng được đẩy ảnh lên kho. KHÔNG phải lỗi: cứ để lớp nền
+            // file tĩnh lo, và vẫn ghi lại để khỏi hỏi lại mỗi lượt vẽ.
+            if (r.status === 404) return { fields: {} };
+            return r.ok ? r.json() : null;
+          })
+          .then(function (j) {
+            if (!j) { AV_HONG[slug] = Date.now(); return cu ? cu.em : {}; }
+            delete AV_HONG[slug];
+            var b = avBoc(j), gio = Date.now();
+            // ⛔ CHỈ ghi khi đọc được thật — ghi cả lượt hỏng là đóng băng bảng rỗng.
+            ghiAvatarMay(slug, { luc: b.luc, kiem: gio, tai: gio, em: b.em });
+            return b.em;
+          });
+      };
+
+      var chay;
+      if (!cu || !avConHan(cu.tai, AV_HAN_GIAY)) {
+        chay = taiDu();
+      } else {
+        // Hỏi RIÊNG mốc `luc` — 254 byte. Giống mốc đang giữ thì đóng lại dấu `kiem`
+        // và dùng luôn ảnh cũ; khác (hoặc đọc không ra mốc) mới tải trọn gói.
+        chay = fetch(goc + '&mask.fieldPaths=luc', { cache: 'no-store' })
+          .then(function (r) {
+            if (r.status === 404) return { fields: {} };
+            return r.ok ? r.json() : null;
+          })
+          .then(function (j) {
+            if (!j) { AV_HONG[slug] = Date.now(); return cu.em; }
+            delete AV_HONG[slug];
+            if (avMoc(j) !== cu.luc) return taiDu();
+            ghiAvatarMay(slug, { luc: cu.luc, kiem: Date.now(), tai: cu.tai, em: cu.em });
+            return cu.em;
+          });
+      }
+
+      AV_BAY[slug] = chay['catch'](function () {
+        AV_HONG[slug] = Date.now();
+        return cu ? cu.em : {};
+      }).then(function (em) { delete AV_BAY[slug]; return em; });
+      return AV_BAY[slug];
+    } catch (e) { return Promise.resolve({}); }
+  }
+
+  // So tên kiểu LỎNG: bằng nhau, hoặc tên này là ĐUÔI của tên kia ("THƯ" ↔ "MINH THƯ").
+  // ⛔ Chính luật đuôi này cứu được ca đổi tên: buổi speaking cũ còn ghi tên ngắn,
+  //    kho thì đã mang tên đầy đủ. So bằng không thôi là trượt hết.
+  function avTenKhop(a, b) {
+    var x = avKhongDau(a).replace(/\s+/g, ' ').trim();
+    var y = avKhongDau(b).replace(/\s+/g, ' ').trim();
+    if (!x || !y) return false;
+    if (x === y) return true;
+    return x.length > y.length ? x.slice(-(y.length + 1)) === (' ' + y)
+                               : y.slice(-(x.length + 1)) === (' ' + x);
+  }
+
+  // ⭐ v1.58.0 (03/09/2026) — TÊN ĐẦY ĐỦ theo danh sách lớp cho một tên "lỏng".
+  // Buổi speaking / bảng điểm có thể còn ghi TÊN GỌI NGẮN ("QUÂN"), trong khi file ảnh
+  // TĨNH đặt theo tên HIỆN TẠI trong `lop.json` ("TRUNG QUÂN") ⇒ URL lớp nền 404 dù ảnh
+  // có sẵn trong kho web. Tra ở đây TRƯỚC khi dựng URL: bằng nhau → lấy; không thì theo
+  // luật ĐUÔI của `avTenKhop`, nhưng CHỈ khi đúng MỘT em khớp — hai em cùng đuôi ("MINH"
+  // ↔ "ĐĂNG MINH"/"NGỌC MINH") thì trả nguyên tên, thà thiếu ảnh còn hơn gắn nhầm mặt.
+  // `dsEm`: mảng tên, hoặc mảng {ten} của lop.json.
+  function avTenDayDu(ten, dsEm) {
+    var ds = dsEm || [];
+    var x = avKhongDau(ten).replace(/\s+/g, ' ').trim();
+    if (!x || !ds.length) return ten;
+    var tenCua = function (e) { return (e && typeof e === 'object') ? e.ten : e; };
+    for (var i = 0; i < ds.length; i++) {
+      var t = tenCua(ds[i]);
+      if (t && avKhongDau(t).replace(/\s+/g, ' ').trim() === x) return t;
+    }
+    var khop = [];
+    for (var k = 0; k < ds.length; k++) {
+      var u = tenCua(ds[k]);
+      if (u && avTenKhop(u, ten)) khop.push(u);
+    }
+    return khop.length === 1 ? khop[0] : ten;
+  }
+
+  // ⭐⭐ v1.94.6 (12/09/2026, thầy chốt) — CHẶN DÒ TÊN CHO HỌC SINH ĐẶC BIỆT.
+  // Sự cố thật: "NGUYỄN HẢI" (tên phụ huynh tự đặt, HS đặc biệt lớp A2-B — không
+  // nằm trong roster nên không có mã số) từng bị `avTenKhop` (so tên kiểu ĐUÔI,
+  // xem chú thích ở hàm đó) khớp NHẦM sang bạn "HẢI" CÓ THẬT cùng lớp, vì "HẢI" là
+  // đuôi của "NGUYỄN HẢI" — đúng luật đuôi nhưng SAI NGƯỜI. Vá 09/09 (`gaAvatar`,
+  // tham số `khongAnh`) chỉ chặn được 2 chỗ avatar TỰ XEM của chính em đặc biệt;
+  // còn bảng xếp hạng/thanh lỗi/chat (dựng từ DỮ LIỆU ĐÃ NỘP, không lọc theo
+  // roster) vẫn tự do gắn `data-av-em="NGUYỄN HẢI"` rồi rơi vào đúng bẫy cũ.
+  // ⇒ Chặn TẬN GỐC ở ĐÂY — hàm DUY NHẤT quét toàn trang để gắn ảnh sống — thay vì
+  // vá từng chỗ dựng HTML: tên nào trùng (chuẩn hoá) với một HS đặc biệt của ĐÚNG
+  // lớp đó thì KHÔNG BAO GIỜ dò ảnh (bỏ qua thẳng, không thử cả tra mã số lẫn so
+  // tên lỏng) — vì đây không phải bạn thật, không có ảnh nào để tìm đúng cả.
+  function avChanDacBiet(dsDb) {
+    var chan = {};
+    (dsDb || []).forEach(function (x) {
+      var t = x && (typeof x === 'object' ? x.ten : x);
+      if (t) chan[avKhongDau(t).replace(/\s+/g, ' ').trim()] = true;
+    });
+    return chan;
+  }
+
+  // Đè ảnh mới nhất từ kho lên mọi ô avatar đã vẽ của một lớp.
+  // `dsEm` (tuỳ chọn): [{id, ten}] lấy từ lop.json — có thì tra THẲNG theo mã số
+  // (chắc chắn nhất); không có thì lùi về so tên lỏng với tên kho đang giữ.
+  // `dsDb` (tuỳ chọn): [{ten}] danh sách HS ĐẶC BIỆT của lớp (`l.hsDb`) — tên nào
+  // trùng danh sách này bị CHẶN dò ảnh hoàn toàn, xem chú thích ⭐⭐ ở trên.
+  function deAvatarKho(lopGoc, dsEm, dsDb) {
+    return napAvatarKho(lopGoc).then(function (em) {
+      var ids = Object.keys(em);
+      if (!ids.length) return 0;
+
+      var theoTen = {};                       // mã số của từng em, tra theo tên
+      (dsEm || []).forEach(function (x) {
+        if (x && x.id != null) theoTen[avKhongDau(x.ten)] = String(x.id);
+      });
+      var chanDb = avChanDacBiet(dsDb);
+
+      var o = document.querySelectorAll('[data-av-em]'), de = 0;
+      for (var i = 0; i < o.length; i++) {
+        var el = o[i];
+        if (avSlugLop(el.getAttribute('data-av-lop')) !== avSlugLop(lopGoc)) continue;
+        var ten = el.getAttribute('data-av-em');
+        if (chanDb[avKhongDau(ten).replace(/\s+/g, ' ').trim()]) continue;
+        var id = theoTen[avKhongDau(ten)];
+        if (!(id && em[id])) {                // không có mã số → dò theo tên
+          id = null;
+          for (var k = 0; k < ids.length; k++) {
+            if (avTenKhop(em[ids[k]].t, ten)) { id = ids[k]; break; }
+          }
+        }
+        if (!(id && em[id])) continue;
+
+        // v1.58.0 — ô trên thanh đội (`av-thanh`) từng vẽ <img> không mang lớp `av-anh`:
+        // bản trước không thấy nên chèn thêm một <img> thứ hai chồng lên. Nay nhận cả hai.
+        var img = el.querySelector('img.av-anh') || el.querySelector('img');
+        if (!img) {
+          // Ảnh nền 404 nên `onerror` đã gỡ thẻ — dựng lại đúng khuôn của `gaAvatar`
+          // (chèn LÊN ĐẦU để huy hiệu sao / chấm đỏ vẫn nằm trên ảnh).
+          img = document.createElement('img');
+          img.className = 'av-anh';
+          img.alt = '';
+          el.insertBefore(img, el.firstChild);
+        }
+        // ⛔ Chỉ đặt khi KHÁC — `batAvatarKho()` chạy lại mỗi lần trang vẽ thêm ô mới,
+        // đặt lại `src` y hệt là bắt trình duyệt giải mã lại ảnh không công.
+        var moi = 'data:image/jpeg;base64,' + em[id].a;
+        if (img.getAttribute('src') !== moi) { img.setAttribute('src', moi); de++; }
+      }
+
+      // Bóng bay trên canvas — xem chú thích `anhBong()`.
+      for (var b = 0; b < AV_BONG.length; b++) {
+        var q = AV_BONG[b];
+        if (avSlugLop(q.lop) !== avSlugLop(lopGoc)) continue;
+        if (chanDb[avKhongDau(q.ten).replace(/\s+/g, ' ').trim()]) continue;
+        var qid = theoTen[avKhongDau(q.ten)];
+        if (!(qid && em[qid])) {
+          qid = null;
+          for (var m = 0; m < ids.length; m++) {
+            if (avTenKhop(em[ids[m]].t, q.ten)) { qid = ids[m]; break; }
+          }
+        }
+        if (qid && em[qid]) {
+          var mb = 'data:image/jpeg;base64,' + em[qid].a;
+          if (q.im.src !== mb) { q.im.src = mb; de++; }
+        }
+      }
+      return de;
+    })['catch'](function () { return 0; });
+  }
+
+  // Bật một lần cho cả trang: đè ngay, rồi đè lại mỗi khi trang vẽ thêm ô avatar mới
+  // (đổi lớp, mở pop-up cả lớp, vẽ lại thẻ…). Lượt sau lấy từ đệm phiên nên KHÔNG
+  // tốn thêm lượt đọc kho nào — chỉ quét DOM.
+  // ⛔ CHỈ theo dõi `childList`, TUYỆT ĐỐI KHÔNG theo dõi `attributes`: chính hàm đè
+  //    đổi thuộc tính `src`, theo dõi attributes là nó tự gọi lại mình vô tận.
+  // ⛔ Gọi LẠI với lớp khác là ĐỔI lớp đang theo dõi, KHÔNG phải bị bỏ qua: dashboard
+  //    của thầy đổi lớp liên tục trong cùng một trang. Nhưng cái tai nghe DOM chỉ dựng
+  //    ĐÚNG MỘT LẦN — dựng thêm mỗi lần đổi lớp thì mỗi lượt vẽ chạy N lượt đè chồng nhau.
+  // `dsDb` (v1.94.6) — danh sách HS ĐẶC BIỆT của lớp (`l.hsDb`), xem chú thích
+  // ⭐⭐ ở `deAvatarKho`.
+  var avLop = '', avDs = [], avDb = [], avTai = null, avHen = null;
+  function batAvatarKho(lopGoc, dsEm, dsDb) {
+    if (!lopGoc) return;
+    avLop = lopGoc;
+    avDs = dsEm || [];
+    avDb = dsDb || [];
+    var chay = function () { try { deAvatarKho(avLop, avDs, avDb); } catch (e) {} };
+    chay();
+    if (avTai) return;
+    try {
+      avTai = new MutationObserver(function () {
+        if (avHen) return;
+        avHen = setTimeout(function () { avHen = null; chay(); }, 250);
+      });
+      avTai.observe(document.body, { childList: true, subtree: true });
+    } catch (e) { /* trình duyệt cổ: vẫn có lượt đè đầu tiên ở trên */ }
+  }
+
+  /* ============================================================
+     ⭐ v1.37.0 — CHẤM ĐỎ "LỚP CÓ TIN NHẮN MỚI" trên avatar
+
+     Thầy chốt 02/09/2026: chấm đỏ hiện ở MỌI avatar của em (thanh đầu +
+     đầu sidebar) trên cả 3 trang, và CHỈ TẮT khi em bấm vào khung chat.
+
+     💸 Tiền: `lop.html` đã mở sẵn kênh chat sống ⇒ biết tin mới nhất MIỄN
+     PHÍ, chỉ việc gọi `datMocTinMoi()`. Hai trang bài phải hỏi kho 1 lượt
+     đọc — nên có ĐỆM 60 GIÂY trong sessionStorage. ⛔ CHỈ đệm khi đọc được
+     THẬT (đệm cả lượt hỏng là giấu chấm đỏ suốt 60 giây — cùng họ bẫy đã
+     cắn ở `napHanSua()`).
+     ============================================================ */
+  var TIN_DEM_MS = 60000;
+  function khoaXemTin(lop, ma) { return 'mylesson_xemtin_' + lop + '_' + ma; }
+  function khoaTinMoi(lop) { return 'awc_tinmoi_' + lop; }
+
+  // Mốc em đã xem tin tới đâu — nhớ ngay trên máy em. Có kèm MÃ EM vì một
+  // máy ở nhà có thể hai anh em cùng học, đừng để em này tắt chấm hộ em kia.
+  function mocDaXem(lop, ma) {
+    try { return Number(localStorage.getItem(khoaXemTin(lop, ma))) || 0; } catch (e) { return 0; }
+  }
+  // ⛔ LUẬT 10 — đừng đánh dấu bằng `Date.now()` trần: đồng hồ máy em chạy
+  // chậm vài phút là mốc "đã xem" thấp hơn tin vừa đọc ⇒ chấm đỏ không chịu
+  // tắt. Luôn truyền vào MỐC CỦA TIN cuối cùng em đã thấy.
+  function danhDauDaXem(lop, ma, luc) {
+    var m = Number(luc) || Date.now();
+    try { localStorage.setItem(khoaXemTin(lop, ma), String(m)); } catch (e) {}
+  }
+
+  function datMocTinMoi(lop, luc) {
+    try {
+      sessionStorage.setItem(khoaTinMoi(lop),
+        JSON.stringify({ luc: Number(luc) || 0, tai: Date.now() }));
+    } catch (e) {}
+  }
+  function mocTinMoi(lop) {
+    var nay = Date.now();
+    try {
+      var o = JSON.parse(sessionStorage.getItem(khoaTinMoi(lop)) || 'null');
+      if (o && (nay - Number(o.tai)) < TIN_DEM_MS) return Promise.resolve(Number(o.luc) || 0);
+    } catch (e) {}
+    if (!window.AWChat || !AWChat.tinMoiNhat) return Promise.resolve(0);
+    return AWChat.tinMoiNhat(lop).then(function (luc) {
+      datMocTinMoi(lop, luc);                 // chỉ đệm khi ĐỌC ĐƯỢC THẬT
+      return Number(luc) || 0;
+    })['catch'](function () { return 0; });   // kho hỏng/hết hạn mức: im lặng, không đệm
+  }
+  function chatChuaDoc(lop, ma) {
+    return mocTinMoi(lop).then(function (luc) { return !!luc && luc > mocDaXem(lop, ma); });
+  }
+
+  // Bật/tắt chấm đỏ trên mọi avatar của em trong trang (thanh đầu + sidebar).
+  function veChamDo(hien) {
+    var ds = document.querySelectorAll('.av.me, .side-head .av');
+    Array.prototype.forEach.call(ds, function (el) {
+      var c = el.querySelector('.av-cham');
+      if (!c) {
+        c = document.createElement('span');
+        c.className = 'av-cham';
+        c.setAttribute('title', 'Lớp có tin nhắn mới');
+        el.appendChild(c);
+      }
+      c.hidden = !hien;
+    });
+  }
+
+  // ============================================================
+  // ⭐⭐ v1.48.0 (02/09/2026) — THẺ "KHÔNG GIAO BÀI" (thầy chốt)
+  //
+  // Thầy bấm icon cây bút trên dashboard → ghi MỘT tài liệu vào kho `lessonNghi`
+  // (id = mã lớp, ghi đè lần trước). Cả dashboard lẫn trang lớp đọc kho đó và
+  // dựng một thẻ ĐẶC BIỆT: chữ căn giữa, dưới là đồng hồ đếm tới GIỜ VÀO HỌC
+  // buổi kế tiếp; hết giờ = hết hạn (trang lớp đẩy nó xuống nhóm bài cũ).
+  //
+  // ⛔ `han` chốt CỨNG lúc bấm, không tính lại mỗi lần mở trang. Nhờ vậy trang
+  // lớp KHÔNG cần đọc kho lịch học `mystudentRosterClasses` — chỉ pop-up bên
+  // dashboard mới đọc (tiết kiệm lượt đọc Firestore, luật 8️⃣ BAN GIAO.md).
+  // ⛔ Chuỗi `han` RỖNG = "đã gỡ thẻ nghỉ" — luật kho cấm xoá tài liệu, đúng
+  // nếp `lessonHan`.
+  // ============================================================
+  // ⭐ v1.51.0 — mỗi lớp nay là { han, tt }: `tt` = '' | 'an' (ẩn với học sinh).
+  // ⛔ ĐỔI KHOÁ ĐỆM khi đổi khuôn bảng (`awc_nghi1` → `awc_nghi2`): máy đang mở
+  // trang bản cũ mà đọc trúng khuôn cũ là mất sạch thẻ nghỉ trong 60 giây đầu —
+  // đúng bẫy đã gặp với `awc_hansua2`.
+  var NGHI = {};                       // { '<mã lớp>': { han, tt } }
+  var KHOA_NGHI = 'awc_nghi2';
+  var NGHI_CACHE_GIAY = 60;            // cùng nhịp với HAN_CACHE_GIAY
+
+  function docNghiPhien() {
+    try {
+      var o = JSON.parse(sessionStorage.getItem(KHOA_NGHI) || 'null');
+      if (o && (Date.now() - o.luc) < NGHI_CACHE_GIAY * 1000) return o.bang;
+    } catch (e) {}
+    return null;
+  }
+
+  // ⛔ CẢ THÂN HÀM TRONG try + tự nuốt lỗi, y hệt `napHanSua()`: chưa dán luật
+  // Firestore hay mất mạng thì mọi trang phải chạy đúng như trước v1.48.0.
+  function napNghi() {
+    try {
+      var db = CFG.AWORD_DB || {};
+      if (!db.projectId || !db.apiKey) return Promise.resolve({});
+      var san = docNghiPhien();
+      if (san) return Promise.resolve(san);
+      var u = 'https://firestore.googleapis.com/v1/projects/' + db.projectId
+            + '/databases/(default)/documents/lessonNghi?pageSize=100&key='
+            + encodeURIComponent(db.apiKey);
+      // ⭐ v1.54.0 — ưu tiên lượt đã xin sớm ở js/som.js (cùng địa chỉ, cùng luật đệm).
+      return (laySom('lessonNghi') || fetch(u, { cache: 'no-store' }))
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          var ra = {};
+          var ds = (j && j.documents) || [];
+          for (var i = 0; i < ds.length; i++) {
+            var f = ds[i].fields || {};
+            var lop = f.lop && f.lop.stringValue;
+            if (!lop) continue;
+            var tt = String((f.tt && f.tt.stringValue) || '');
+            ra[lop] = { han: String((f.han && f.han.stringValue) || ''),
+                        tt: (tt === 'an') ? 'an' : '' };
+          }
+          if (j) { try { sessionStorage.setItem(KHOA_NGHI,
+            JSON.stringify({ luc: Date.now(), bang: ra })); } catch (e) {} }
+          return ra;
+        })['catch'](function () { return {}; });
+    } catch (e) { return Promise.resolve({}); }
+  }
+
+  // Mốc hết hạn của thẻ nghỉ một lớp (ms), hoặc null nếu lớp không có thẻ nghỉ.
+  function nghiCua(maLop) {
+    var o = NGHI[String(maLop || '')];
+    if (!o || !o.han) return null;
+    var t = Date.parse(o.han);
+    return isNaN(t) ? null : t;
+  }
+  // Trạng thái thẻ nghỉ: '' bình thường · 'an' ẩn với học sinh.
+  function nghiTt(maLop) {
+    var o = NGHI[String(maLop || '')];
+    return (o && o.tt === 'an') ? 'an' : '';
+  }
+  // Đặt tại chỗ sau khi ghi Firestore xong, khỏi phải chờ hết 60 giây đệm.
+  function datNghi(maLop, han, tt) {
+    NGHI[String(maLop || '')] = { han: String(han || ''), tt: (tt === 'an') ? 'an' : '' };
+    try { sessionStorage.setItem(KHOA_NGHI,
+      JSON.stringify({ luc: Date.now(), bang: NGHI })); } catch (e) {}
+  }
+
+  // ---------- LỊCH HỌC (kho myStudent, CHỈ ĐỌC) ----------
+  // ⛔ CHỈ dashboard gọi, và chỉ khi thầy MỞ pop-up giao nghỉ — kho này tính một
+  // lượt đọc cho mỗi tài liệu. Đệm 5 phút (lịch học hiếm khi đổi).
+  // ⛔ Kho anh em `mystudentRosterStudents` chứa mã đăng nhập + ngày sinh ĐỦ NĂM
+  // của 156 em — TUYỆT ĐỐI không mở luật cho kho đó. Xem BAN GIAO.md mục 0🔒.
+  var KHOA_LICH = 'awc_lichhoc1';
+  var LICH_CACHE_GIAY = 300;
+
+  function napLopHoc() {
+    try {
+      var db = CFG.AWORD_DB || {};
+      if (!db.projectId || !db.apiKey) return Promise.resolve(null);
+      try {
+        var o = JSON.parse(sessionStorage.getItem(KHOA_LICH) || 'null');
+        if (o && (Date.now() - o.luc) < LICH_CACHE_GIAY * 1000) return Promise.resolve(o.bang);
+      } catch (e) {}
+      var u = 'https://firestore.googleapis.com/v1/projects/' + db.projectId
+            + '/databases/(default)/documents/mystudentRosterClasses?pageSize=300&key='
+            + encodeURIComponent(db.apiKey);
+      return fetch(u, { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        // ⛔ null (403 chưa dán luật / mất mạng) KHÁC {} (đọc được nhưng kho rỗng):
+        // bên gọi phải phân biệt để báo đúng câu cho thầy.
+        .then(function (j) {
+          if (!j) return null;
+          var ra = {};
+          var ds = j.documents || [];
+          for (var i = 0; i < ds.length; i++) {
+            var f = ds[i].fields || {};
+            var ma = String((f.code && f.code.stringValue) || '')
+                       .replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+            if (!ma) continue;
+            if (Number((f.archived && f.archived.integerValue) || 0)) continue;
+            ra[ma] = {
+              thu: String((f.days && f.days.stringValue) || ''),
+              gio: String((f.start_time && f.start_time.stringValue) || ''),
+              tamNghi: !!Number((f.on_break && f.on_break.integerValue) || 0)
+            };
+          }
+          try { sessionStorage.setItem(KHOA_LICH,
+            JSON.stringify({ luc: Date.now(), bang: ra })); } catch (e) {}
+          return ra;
+        })['catch'](function () { return null; });
+    } catch (e) { return Promise.resolve(null); }
+  }
+
+  // "T3,T7" -> [2, 6] theo chỉ số getDay(). Cùng bảng chữ với app myLesson
+  // (`THU_TEN`) — đừng đổi chữ, đó là chữ myStudent ghi trong cột `days`.
+  var THU_TEN = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+  // ⭐⭐ v1.81.0 (09/09/2026) — myStudent GHI HAI KIỂU, không phải một.
+  // Đo thật trên kho ngày 09/09: 8 lớp ghi "T2,T5" nhưng A1-C và B2-B ghi hẳn
+  // chữ "CHỦ NHẬT". Bảng `THU_TEN` chỉ có "CN" nên hai lớp đó trả về MẢNG RỖNG
+  // ⇒ `buoiTiepTheo()` trả rỗng ⇒ pop-up KHÔNG GIAO BÀI của hai lớp này báo
+  // "chưa khai đủ lịch học" dù kho khai đủ. Lỗi CÂM, sống từ v1.48.0.
+  // ⛔ Bỏ dấu trước khi so (`CHỦ NHẬT` → `CHU NHAT`): kho gõ tay nên có ngày ra
+  // "Chủ nhật" / "chu nhat". Đừng so thẳng chuỗi có dấu.
+  var THU_LA = { 'CHU NHAT': 0, 'CHUNHAT': 0, 'T2': 1, 'T3': 2, 'T4': 3,
+                 'T5': 4, 'T6': 5, 'T7': 6 };
+  // ⛔ Dải dấu thanh PHẢI viết bằng mã `\u0300-\u036f`, ĐỪNG gõ dấu thẳng vào
+  // regex: trình soạn thảo tự chuẩn hoá Unicode là hàm này hỏng lặng lẽ (đúng
+  // bẫy đã trả giá ở `khongDau()` bên app myLesson).
+  function khongDauHoa(s) {
+    return avKhongDau(s).replace(/\s+/g, ' ').trim().toUpperCase();
+  }
+  function thuTuChuoi(s) {
+    var ra = [];
+    var phan = String(s || '').split(/[,;/]/);
+    for (var i = 0; i < phan.length; i++) {
+      var chu = khongDauHoa(phan[i]);
+      var j = THU_TEN.indexOf(chu);
+      if (j < 0 && THU_LA[chu] !== undefined) j = THU_LA[chu];
+      if (j >= 0 && ra.indexOf(j) < 0) ra.push(j);
+    }
+    return ra;
+  }
+
+  // Mốc GIỜ VÀO HỌC của buổi kế tiếp, dạng "YYYY-MM-DDTHH:mm" (rỗng nếu không
+  // đủ dữ liệu). Dò 8 ngày tới cho chắc: hôm nay mà chưa tới giờ thì tính luôn
+  // hôm nay, qua giờ rồi thì sang buổi sau.
+  // ⛔⛔ GIỜ TRONG myStudent GHI KIỂU VIỆT: "17h40" · "8h00" · "19h30" — KHÔNG
+  // phải "17:40". Đo thật trên kho ngày 02/09/2026: cả 10 lớp đều dạng `h`, nên
+  // bản đầu (chỉ nhận dấu hai chấm) chặn SẠCH mọi lớp. Nhận cả ba kiểu, và cho
+  // giờ MỘT chữ số ("8h00"), phút có thể vắng ("8h" = 8:00).
+  function gioPhut(gio) {
+    var m = /^(\d{1,2})\s*[h:.]\s*(\d{1,2})?$/i.exec(String(gio || '').trim());
+    if (!m) return null;
+    var h = Number(m[1]), p = Number(m[2] || 0);
+    if (!(h >= 0 && h <= 23 && p >= 0 && p <= 59)) return null;
+    return { h: h, p: p };
+  }
+
+  function buoiTiepTheo(thuChuoi, gio, tuMoc) {
+    var thu = thuTuChuoi(thuChuoi);
+    var m = gioPhut(gio);
+    if (!thu.length || !m) return '';
+    var goc = new Date(tuMoc == null ? Date.now() : tuMoc);
+    for (var i = 0; i < 8; i++) {
+      var d = new Date(goc.getFullYear(), goc.getMonth(), goc.getDate() + i,
+                       m.h, m.p, 0, 0);
+      if (thu.indexOf(d.getDay()) < 0) continue;
+      if (d.getTime() <= goc.getTime()) continue;
+      var hai = function (n) { return (n < 10 ? '0' : '') + n; };
+      return d.getFullYear() + '-' + hai(d.getMonth() + 1) + '-' + hai(d.getDate())
+           + 'T' + hai(d.getHours()) + ':' + hai(d.getMinutes());
+    }
+    return '';
+  }
+
+  // ============================================================
+  // ⭐⭐ v1.81.0 (thầy chốt 09/09/2026) — "LỚP ĐANG HỌC"
+  //
+  // Thẻ vừa tới hạn KHÔNG hiện "HẾT HẠN" đỏ ngay nữa: suốt buổi học nó hiện
+  // "LỚP ĐANG HỌC" + nền xanh lơ, TAN LỚP rồi mới thành HẾT HẠN.
+  //
+  // ⛔ GIỜ HỌC LẤY TỪ `lop.json` (app nhồi vào — xem `lichLopChoWeb()` bên
+  // `app/src/main/lib/web.js`), KHÔNG đọc kho `mystudentRosterClasses` ở trang
+  // học sinh: kho đó tính MỘT LƯỢT ĐỌC CHO MỖI TÀI LIỆU (14 lớp) nhân với mỗi
+  // lượt 156 em mở trang. `lop.json` thì trình duyệt vốn đã tải sẵn. Luật 8️⃣.
+  //
+  // ⛔ ĐƯỜNG LÙI PHẢI GIỮ: bản `lop.json` cũ (app chưa đẩy lại) không có ba
+  // trường `thu`/`gio`/`tan` ⇒ mọi hàm dưới đây trả null/false ⇒ cả bộ web chạy
+  // Y HỆT trước v1.81.0. Đừng bao giờ để nó ném lỗi thay vì trả null.
+  // ============================================================
+
+  // ⭐ CỬA SỔ LÙI 2 TIẾNG — thầy chốt 09/09/2026.
+  // ⛔ VÌ SAO CẦN: giờ hạn thầy khai trong Cài đặt LỆCH giờ vào lớp thật. Đo trên
+  // kho ngày 09/09: A1-A · A2-B · B2-A khai hạn 17:30 mà giờ vào lớp là 17h40;
+  // A2-A khai 19:20 mà vào lớp 19h30. Nếu chỉ nhận "hạn >= giờ vào" thì có đúng
+  // 10 phút thẻ hiện HẾT HẠN ĐỎ rồi mới nhảy sang LỚP ĐANG HỌC — trái hẳn lời
+  // thầy "không hiện chữ HẾT HẠN ngay". Lùi 2 tiếng thì thẻ đổi màu NGAY GIÂY
+  // hết hạn.
+  // ⛔ Lùi 2 tiếng KHÔNG thể quơ nhầm bài của buổi trước: hai buổi của một lớp
+  // luôn cách nhau ít nhất một ngày.
+  var LUI_TRUOC = 2 * 60 * 60 * 1000;
+
+  // Lịch của một lớp trong `lop.json`, hoặc null nếu lớp/khoá đó không có lịch.
+  function lichCua(dl, maLop) {
+    var l = lopTheoMa(dl || {}, String(maLop || ''));
+    if (!l || l.nghi) return null;                 // lớp TẠM NGHỈ: không buổi nào
+    var thu = thuTuChuoi(l.thu);
+    var vao = gioPhut(l.gio), tan = gioPhut(l.tan);
+    if (!thu.length || !vao || !tan) return null;  // thiếu một trong ba thì thôi
+    return { thu: thu, vao: vao, tan: tan };
+  }
+
+  // BUỔI HỌC mà một mốc thời gian `moc` thuộc về: { batDau, ketThuc } tính bằng
+  // ms, hoặc null. "Thuộc về" = `moc` nằm trong [giờ vào − 2 tiếng, giờ tan).
+  //
+  // ⛔ Dò cả ngày HÔM TRƯỚC và HÔM SAU (i = −1 … 1), hai lý do:
+  //   · buổi vắt qua nửa đêm (giờ tan <= giờ vào) — chưa lớp nào thế nhưng cửa
+  //     sổ lùi 2 tiếng thì có thể rơi sang ngày hôm trước thật;
+  //   · hạn 00:30 thứ Sáu là thuộc buổi tối thứ Năm, không phải buổi thứ Sáu.
+  function buoiChuaMoc(dl, maLop, moc) {
+    var c = lichCua(dl, maLop);
+    if (!c || !moc) return null;
+    var g = new Date(moc);
+    for (var i = -1; i <= 1; i++) {
+      var d = new Date(g.getFullYear(), g.getMonth(), g.getDate() + i,
+                       c.vao.h, c.vao.p, 0, 0);
+      if (c.thu.indexOf(d.getDay()) < 0) continue;
+      var batDau = d.getTime();
+      var ketThuc = new Date(g.getFullYear(), g.getMonth(), g.getDate() + i,
+                             c.tan.h, c.tan.p, 0, 0).getTime();
+      if (ketThuc <= batDau) ketThuc += 24 * 60 * 60 * 1000;   // vắt qua nửa đêm
+      if (moc >= batDau - LUI_TRUOC && moc < ketThuc) {
+        return { batDau: batDau, ketThuc: ketThuc };
+      }
+    }
+    return null;
+  }
+
+  // Thẻ này có đang trong buổi học không ⇒ hiện "LỚP ĐANG HỌC" thay "HẾT HẠN".
+  // `hanMoc` = mốc hạn THẬT của thẻ (ms). Ba điều kiện, thiếu một là false:
+  //   1. thẻ ĐÃ tới hạn (chưa tới hạn thì đồng hồ vẫn đếm ngược như thường);
+  //   2. hạn đó thuộc về một buổi học (cửa sổ lùi 2 tiếng ở trên);
+  //   3. buổi đó CHƯA TAN.
+  // ⛔ Bài hết hạn từ buổi TRƯỚC tự rớt ở điều kiện 3 — nó vẫn HẾT HẠN đỏ như cũ,
+  // đúng ý thầy: chỉ thẻ "hết hạn đúng buổi này" mới được đổi màu.
+  function theDangHoc(dl, maLop, hanMoc) {
+    if (!hanMoc) return false;
+    var luc = Date.now();
+    if (hanMoc > luc) return false;
+    var b = buoiChuaMoc(dl, maLop, hanMoc);
+    return !!b && luc < b.ketThuc;
+  }
+
+  // ⭐⭐ v1.81.0 (thầy chốt 09/09/2026) — THẺ NGHỈ CÒN HIỆU LỰC VỚI HỌC SINH?
+  //
+  // ⛔ VÌ SAO PHẢI LÀ HÀM CHUNG: trước v1.81.0 trang lớp và dashboard xét thẻ
+  // nghỉ bằng HAI LUẬT KHÁC NHAU — dashboard chỉ vẽ khi `han` chưa qua, trang lớp
+  // thì vẽ mãi kể cả đã qua. Hậu quả đo được ngày 09/09: A1A và A1B kẹt hai thẻ
+  // thầy bấm thử từ 02/09, học sinh thấy suốt một tuần mà thầy KHÔNG có nút nào
+  // để gỡ vì dashboard coi như chúng không tồn tại. Một luật, một hàm.
+  //
+  // Còn hiệu lực = có thẻ · thầy không ẩn · BUỔI ứng với `han` chưa tan.
+  // ⛔ Không tra được buổi (bản `lop.json` cũ chưa có giờ) thì coi như CÒN hiệu
+  // lực — giữ đúng nếp v1.48.0, đừng để lỡ mất thẻ vì thiếu dữ liệu.
+  function nghiConHieuLuc(dl, maLop) {
+    if (nghiTt(maLop) === 'an') return false;
+    var m = nghiCua(maLop);
+    if (m == null) return false;
+    var b = buoiChuaMoc(dl, maLop, m);
+    return !b || Date.now() < b.ketThuc;
+  }
+
+  // ---------- RUỘT THẺ NGHỈ: BÓNG BAY + GAME KHỦNG LONG ----------
+  //
+  // ⛔ VÌ SAO MỘT CANVAS CHO CẢ HAI: `.the-in` có `clip-path` hình mũi tên và
+  // `.the-diem` có `overflow:hidden` — mọi thứ vẽ bằng thẻ DOM thò ra ngoài đều
+  // bị chém cụt (đúng bẫy đã trả giá với avatar hôm 02/09). Vẽ trong canvas thì
+  // không có gì thò ra được, và chỉ tốn MỘT vòng lặp rAF cho cả hai chế độ.
+  //
+  // ⛔ VÒNG LẶP PHẢI TỰ CHẾT: mỗi khung hình kiểm `document.contains(canvas)` —
+  // thẻ bị vẽ lại (đổi lớp, nạp lại danh sách) là DOM cũ rời cây, vòng lặp cũ
+  // phải dừng ngay kẻo chạy ngầm mãi và cộng dồn mỗi lần vẽ.
+  //
+  // ⛔ Máy bật "giảm chuyển động" thì KHÔNG chạy vòng lặp: vẽ đứng yên một khung.
+  var MAU_BONG = ['#0E7C6E', '#B3541E', '#5B8DEF', '#8CC63F', '#E36B5C', '#9C6ADE', '#F2A93B'];
+
+  function chuTatBong(ten) {
+    var tu = String(ten || '').trim().split(/\s+/).filter(Boolean);
+    if (!tu.length) return '?';
+    if (tu.length === 1) return tu[0].slice(0, 2).toUpperCase();
+    return (tu[tu.length - 2].charAt(0) + tu[tu.length - 1].charAt(0)).toUpperCase();
+  }
+
+  function itMau(ten) {
+    var s = 0;
+    for (var i = 0; i < String(ten).length; i++) s += String(ten).charCodeAt(i);
+    return MAU_BONG[s % MAU_BONG.length];
+  }
+
+  // Vẽ nền tròn + chữ tắt trước, ảnh đè lên khi tải xong (ảnh 404 thì giữ chữ tắt
+  // — cùng nếp `onerror="this.remove()"` của avatar bên các trang).
+  //
+  // ⭐ v1.55.0 — bóng bay vẽ trên CANVAS nên `deAvatarKho()` không với tới được
+  // (nó chỉ đè được thẻ DOM). Nên ghi tên từng quả bóng vào `AV_BONG`; khi kho ảnh
+  // về, `deAvatarKho()` duyệt lại danh sách này và đổi `im.src`. Sân bóng vẽ lại
+  // liên tục và đọc `o.anh` ở MỖI khung hình, nên khung kế tiếp là ảnh mới hiện ra,
+  // không phải dựng lại sân.
+  var AV_BONG = [];
+  function anhBong(lopGoc, ten) {
+    var im = new Image();
+    var o = { anh: null };
+    im.onload = function () { o.anh = im; };
+    im.src = avUrl(lopGoc, ten);
+    AV_BONG.push({ lop: lopGoc, ten: ten, im: im });
+    // ⛔ Sân nghỉ dựng lại mỗi lần vẽ thẻ; không chặn trần thì danh sách phình mãi
+    // suốt phiên. Giữ 400 quả gần nhất là quá đủ cho lớp đông nhất (18 em).
+    if (AV_BONG.length > 400) AV_BONG.splice(0, AV_BONG.length - 400);
+    return o;
+  }
+
+  function giamChuyenDongChung() {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+    catch (e) { return false; }
+  }
+
+  // ============================================================
+  // gaSanNghi(canvas, dsTen, lopGoc) — gắn sân chơi vào một canvas.
+  // Trả về { doiCheDo(), doiCo() } cho trang gọi; `doiCo()` gọi lại khi khung
+  // đổi kích thước.
+  // ============================================================
+  function gaSanNghi(canvas, dsTen, lopGoc) {
+    var ctx = canvas.getContext('2d');
+    var W = 0, H = 0, dpr = 1;
+    var cheDo = 'bong';                 // 'bong' | 'game'
+    var bong = [], anh = {};
+    var G = null;                       // trạng thái game khủng long
+    var chay = false, lucTruoc = 0;
+
+    (dsTen || []).forEach(function (t) { anh[t] = anhBong(lopGoc, t); });
+
+    function doiCo() {
+      var r = canvas.getBoundingClientRect();
+      if (!r.width || !r.height) return false;
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      W = r.width; H = r.height;
+      canvas.width = Math.round(W * dpr);
+      canvas.height = Math.round(H * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return true;
+    }
+
+    // ---- BÓNG BAY ----
+    // Cỡ bóng theo chiều cao khung và SỐ EM: lớp đông thì bóng nhỏ lại cho còn
+    // chỗ lượn (thầy chốt "size bóng không quá to để có không gian bay tự do").
+    // ⭐ v1.49.0 (thầy chốt) — BÓNG TO HƠN, BAY NHANH/XA/LỘN XỘN HƠN.
+    // Ba số đã nới: phần diện tích khung dành cho bóng .13 → .19 · trần bán kính
+    // H*.22 → H*.30 · tốc độ 9-23 → 26-52 px/giây. Xem thêm `nhipBong()`: mỗi
+    // khung hình có thêm một cú hích ngẫu nhiên nhỏ để đường bay cong vô định
+    // thay vì đi thẳng rồi nảy như bi-a.
+    function dungBong() {
+      var n = (dsTen || []).length || 1;
+      var r = Math.max(11, Math.min(H * 0.30, Math.sqrt((W * H * 0.19) / (n * Math.PI))));
+      bong = (dsTen || []).map(function (t, i) {
+        var g = (i * 2.399963) + Math.random() * 6.283;   // rải góc + nhiễu
+        var toc = 26 + Math.random() * 26;                // 26-52 px/giây
+        return {
+          ten: t, r: r,
+          x: r + Math.random() * Math.max(1, W - 2 * r),
+          y: r + Math.random() * Math.max(1, H - 2 * r),
+          vx: Math.cos(g) * toc, vy: Math.sin(g) * toc,
+          mau: itMau(t), tat: chuTatBong(t)
+        };
+      });
+      // Gỡ chồng chỗ ban đầu (rải ngẫu nhiên có thể trùng nhau).
+      for (var v = 0; v < 60; v++) goBong();
+    }
+
+    function goBong() {
+      for (var i = 0; i < bong.length; i++) {
+        for (var j = i + 1; j < bong.length; j++) {
+          var a = bong[i], b = bong[j];
+          var dx = b.x - a.x, dy = b.y - a.y;
+          var d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+          var chong = a.r + b.r - d;
+          if (chong <= 0) continue;
+          var ux = dx / d, uy = dy / d, nua = chong / 2;
+          a.x -= ux * nua; a.y -= uy * nua;
+          b.x += ux * nua; b.y += uy * nua;
+        }
+      }
+    }
+
+    // ⭐ v1.49.0 — CÚ HÍCH NGẪU NHIÊN mỗi khung hình để đường bay CONG và vô
+    // định (thầy chốt "lộn xộn hơn nữa"). Sau khi hích thì kéo tốc độ về lại
+    // khoảng [26, 58] — không có bước này thì nhiễu cộng dồn, bóng nhanh dần
+    // tới mức xuyên qua nhau giữa hai khung hình.
+    var TOC_MIN = 26, TOC_MAX = 58;
+    function nhipBong(dt) {
+      var i, j;
+      for (i = 0; i < bong.length; i++) {
+        var o = bong[i];
+        o.vx += (Math.random() - 0.5) * 90 * dt;
+        o.vy += (Math.random() - 0.5) * 90 * dt;
+        var v = Math.sqrt(o.vx * o.vx + o.vy * o.vy) || 0.01;
+        if (v < TOC_MIN || v > TOC_MAX) {
+          var k = (v < TOC_MIN ? TOC_MIN : TOC_MAX) / v;
+          o.vx *= k; o.vy *= k;
+        }
+        o.x += o.vx * dt; o.y += o.vy * dt;
+        if (o.x - o.r < 0) { o.x = o.r; o.vx = Math.abs(o.vx); }
+        if (o.x + o.r > W) { o.x = W - o.r; o.vx = -Math.abs(o.vx); }
+        if (o.y - o.r < 0) { o.y = o.r; o.vy = Math.abs(o.vy); }
+        if (o.y + o.r > H) { o.y = H - o.r; o.vy = -Math.abs(o.vy); }
+      }
+      // Va chạm đàn hồi, hai bóng coi như cùng khối lượng: đổi thành phần vận
+      // tốc DỌC THEO đường nối tâm, giữ nguyên thành phần vuông góc.
+      for (i = 0; i < bong.length; i++) {
+        for (j = i + 1; j < bong.length; j++) {
+          var a = bong[i], b = bong[j];
+          var dx = b.x - a.x, dy = b.y - a.y;
+          var d = Math.sqrt(dx * dx + dy * dy) || 0.01;
+          if (d >= a.r + b.r) continue;
+          var ux = dx / d, uy = dy / d;
+          var va = a.vx * ux + a.vy * uy, vb = b.vx * ux + b.vy * uy;
+          if (va - vb <= 0) continue;                 // đang rời nhau thì thôi
+          a.vx += (vb - va) * ux; a.vy += (vb - va) * uy;
+          b.vx += (va - vb) * ux; b.vy += (va - vb) * uy;
+          var nua = (a.r + b.r - d) / 2;
+          a.x -= ux * nua; a.y -= uy * nua;
+          b.x += ux * nua; b.y += uy * nua;
+        }
+      }
+    }
+
+    function veBong() {
+      ctx.clearRect(0, 0, W, H);
+      for (var i = 0; i < bong.length; i++) {
+        var o = bong[i];
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+        ctx.fillStyle = o.mau;
+        ctx.fill();
+        ctx.clip();
+        var im = anh[o.ten] && anh[o.ten].anh;
+        if (im) ctx.drawImage(im, o.x - o.r, o.y - o.r, o.r * 2, o.r * 2);
+        else {
+          ctx.fillStyle = '#fff';
+          ctx.font = '800 ' + Math.round(o.r * 0.8) + 'px Montserrat, sans-serif';
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(o.tat, o.x, o.y + 0.5);
+        }
+        ctx.restore();
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,.9)';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+      }
+    }
+
+    // ---- GAME KHỦNG LONG ----
+    // Sân chỉ cao ~110px nên mọi thứ nhỏ: khủng long ~22px, xương rồng 14-24px.
+    function dungGame() {
+      G = { day: H - 12, x: Math.max(18, W * 0.11), y: 0, vy: 0, tren: false,
+            gai: [], toc: 118, diem: 0, ky: kyLuc(), thua: false, tre: 0 };
+    }
+    function kyLuc() {
+      try { return Number(localStorage.getItem('awc_dino_ky') || 0) || 0; } catch (e) { return 0; }
+    }
+    function ghiKyLuc(v) { try { localStorage.setItem('awc_dino_ky', String(v)); } catch (e) {} }
+
+    function nhay() {
+      if (!G) return;
+      if (G.thua) { dungGame(); return; }             // thua rồi thì chạm để chơi lại
+      if (G.tren) return;
+      G.vy = -Math.sqrt(2 * 1500 * (H * 0.44));       // đủ cao để qua cây cao nhất
+      G.tren = true;
+    }
+
+    function nhipGame(dt) {
+      if (G.thua) return;
+      G.diem += dt * 11;
+      G.toc += dt * 3.2;                              // nhanh dần, rất từ tốn
+      G.vy += 1500 * dt;
+      G.y += G.vy * dt;
+      if (G.y > 0) { G.y = 0; G.vy = 0; G.tren = false; }
+
+      G.tre -= dt;
+      if (G.tre <= 0) {
+        G.gai.push({ x: W + 10, cao: 14 + Math.random() * 10, rong: 6 + Math.random() * 5 });
+        G.tre = 0.75 + Math.random() * 0.9;
+      }
+      for (var i = G.gai.length - 1; i >= 0; i--) {
+        G.gai[i].x -= G.toc * dt;
+        if (G.gai[i].x + G.gai[i].rong < -6) G.gai.splice(i, 1);
+      }
+      // Va chạm: hộp khủng long thu nhỏ 3px mỗi bên cho đỡ ức chế.
+      var kx = G.x + 3, kw = 16, ky2 = G.day - 22 + G.y + 3, kh = 16;
+      for (var j = 0; j < G.gai.length; j++) {
+        var c = G.gai[j];
+        if (kx < c.x + c.rong && kx + kw > c.x && ky2 + kh > G.day - c.cao) {
+          G.thua = true;
+          var d = Math.floor(G.diem);
+          if (d > G.ky) { G.ky = d; ghiKyLuc(d); }
+          break;
+        }
+      }
+    }
+
+    function veGame() {
+      ctx.clearRect(0, 0, W, H);
+      ctx.strokeStyle = '#C6D6D2'; ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.moveTo(0, G.day + 0.5); ctx.lineTo(W, G.day + 0.5); ctx.stroke();
+
+      // ⭐ v1.49.0 — CON LỢN thay khủng long (thầy chốt). Vẽ kiểu ô vuông cho
+      // hợp không khí trò Chrome; hai màu hồng đậm/nhạt + mõm và đuôi xoắn.
+      var HONG = '#E88AA5', HONG_DAM = '#C96A87';
+      var dx = G.x, dy = G.day - 22 + G.y;
+      ctx.fillStyle = HONG_DAM;
+      ctx.fillRect(dx + 12, dy + 1, 3, 4);             // tai trái
+      ctx.fillRect(dx + 18, dy + 1, 3, 4);             // tai phải
+      ctx.fillStyle = HONG;
+      ctx.fillRect(dx + 2, dy + 7, 13, 12);            // thân
+      ctx.fillRect(dx + 12, dy + 4, 10, 10);           // đầu
+      ctx.fillStyle = HONG_DAM;
+      ctx.fillRect(dx + 21, dy + 8, 3, 5);             // mõm
+      ctx.fillStyle = '#8E4A61';
+      ctx.fillRect(dx + 22, dy + 9, 1, 1);             // hai lỗ mũi
+      ctx.fillRect(dx + 22, dy + 11, 1, 1);
+      ctx.fillStyle = HONG_DAM;                        // đuôi xoắn
+      ctx.fillRect(dx - 2, dy + 9, 2, 2);
+      ctx.fillRect(dx - 3, dy + 11, 2, 2);
+      ctx.fillRect(dx - 1, dy + 13, 2, 2);
+      ctx.fillStyle = '#3D2A32';
+      ctx.fillRect(dx + 17, dy + 7, 2, 2);             // mắt
+      ctx.fillStyle = HONG_DAM;
+      if (!G.thua) {
+        var buoc = Math.floor(G.diem * 1.6) % 2;
+        ctx.fillRect(dx + 3, dy + 18, 4, 4 - buoc);
+        ctx.fillRect(dx + 10, dy + 18, 4, 3 + buoc);
+      } else {
+        ctx.fillRect(dx + 3, dy + 18, 4, 4); ctx.fillRect(dx + 10, dy + 18, 4, 4);
+      }
+
+      ctx.fillStyle = '#4E7F5C';
+      for (var i = 0; i < G.gai.length; i++) {
+        var c = G.gai[i];
+        ctx.fillRect(c.x, G.day - c.cao, c.rong, c.cao);
+        ctx.fillRect(c.x - 3, G.day - c.cao * 0.72, 3, c.cao * 0.34);
+        ctx.fillRect(c.x + c.rong, G.day - c.cao * 0.6, 3, c.cao * 0.3);
+      }
+
+      ctx.fillStyle = '#93A5A1';
+      ctx.font = '800 10px Montserrat, sans-serif';
+      ctx.textAlign = 'right'; ctx.textBaseline = 'top';
+      ctx.fillText('HI ' + String(G.ky).padStart(4, '0') + '   ' +
+                   String(Math.floor(G.diem)).padStart(4, '0'), W - 6, 5);
+      // ⭐ v1.50.0 — thua thì hiện ĐIỂM ra giữa (thầy chốt); đạt kỷ lục thì số
+      // điểm đổi sang CAM. Kỷ lục vẫn chỉ nằm trên máy đó (chữ `HI` góc phải) —
+      // thầy chốt BỎ phần lưu tên và nút SAVE của bản phác thảo đầu.
+      if (G.thua) {
+        var d = Math.floor(G.diem);
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = (d > 0 && d >= G.ky) ? '#E07A12' : '#54706B';
+        ctx.font = '800 19px Montserrat, sans-serif';
+        ctx.fillText('SCORE ' + String(d).padStart(4, '0'), W / 2, H / 2 - 9);
+        ctx.fillStyle = '#93A5A1';
+        ctx.font = '800 10px Montserrat, sans-serif';
+        ctx.fillText('TAP TO PLAY AGAIN', W / 2, H / 2 + 11);
+      }
+    }
+
+    // ---- VÒNG LẶP ----
+    function khung(luc) {
+      if (!document.contains(canvas)) { chay = false; return; }   // thẻ đã bị vẽ lại
+      if (!W || !H) { if (!doiCo()) { requestAnimationFrame(khung); return; } dungLai(); }
+      var dt = Math.min(0.05, (luc - lucTruoc) / 1000 || 0);      // chặn nhảy cóc khi tab ẩn
+      lucTruoc = luc;
+      if (cheDo === 'game') { nhipGame(dt); veGame(); }
+      else { nhipBong(dt); veBong(); }
+      requestAnimationFrame(khung);
+    }
+    function dungLai() {
+      if (cheDo === 'game') dungGame(); else dungBong();
+    }
+    function batDau() {
+      if (chay) return;
+      chay = true; lucTruoc = 0;
+      if (giamChuyenDongChung()) {                    // đứng yên: vẽ đúng một khung
+        if (doiCo()) { dungLai(); if (cheDo === 'game') veGame(); else veBong(); }
+        chay = false;
+        return;
+      }
+      requestAnimationFrame(function (t) { lucTruoc = t; khung(t); });
+    }
+
+    canvas.addEventListener('pointerdown', function (e) {
+      if (cheDo !== 'game') return;
+      e.preventDefault(); e.stopPropagation();
+      nhay();
+    });
+
+    doiCo(); dungLai(); batDau();
+
+    return {
+      doiCheDo: function (m) {
+        cheDo = (m === 'game') ? 'game' : 'bong';
+        doiCo(); dungLai();
+        if (!chay) batDau();
+        else if (giamChuyenDongChung()) { if (cheDo === 'game') veGame(); else veBong(); }
+      },
+      laGame: function () { return cheDo === 'game'; },
+      doiCo: function () { if (doiCo()) dungLai(); },
+      nhay: nhay
+    };
+  }
+
+  // ---------- KHUÔN HTML CỦA THẺ NGHỈ (dùng chung hai trang) ----------
+  //
+  // ⛔ THẺ NGHỈ LÀ `<div>`, KHÔNG phải `<button>` như thẻ bài bên `lop.html`:
+  // bên trong nó có nút ▶ THẬT (bật/tắt game), mà HTML cấm nút lồng trong nút
+  // (đã vấp thật ở v1.34.0). Nhờ để riêng thế này, thẻ bài thường của lop.html
+  // KHÔNG phải đổi gì cả.
+  //
+  // ⛔ CSS của thẻ này CHÉP Ở HAI NƠI (`lop.html` + `dashboard.html`) đúng nếp
+  // mọi thứ khác của cụm — mỗi trang một khối <style> riêng, không có
+  // stylesheet chung. Sửa một bên phải sửa bên kia.
+  var IC_CHOI = '<svg viewBox="0 0 24 24"><path d="M7 4.5v15l13-7.5z"/></svg>';
+  var IC_VE = '<svg viewBox="0 0 24 24"><path d="M17 4.5v15L4 12z"/></svg>';
+
+  // ⭐ v1.50.0 — nhãn và đồng hồ VỀ LẠI CÙNG MỘT HÀNG (thầy chốt), nhưng nay hai
+  // chữ BẰNG CỠ NHAU nên cụm tự cân — không còn cảnh đồng hồ bị đẩy lệch khỏi
+  // tâm như bản v1.48 (bản đó nhãn nhỏ, đồng hồ to gấp đôi).
+  // `themHtml` = chỗ cắm của riêng dashboard (dải ⚙), nay nằm TRONG vùng sân,
+  // bên trái và có vạch ngăn — đúng chỗ `.diem-ic` của thẻ bài thường.
+  // ⭐ v1.51.0 — đầu thẻ: AVATAR bên trái (to hơn, nằm GIỮA cụm hai dòng theo
+  // chiều dọc) · hai dòng chữ CĂN TRÁI THẲNG HÀNG CHỮ ĐẦU (thầy chốt). Cả cụm
+  // vẫn nằm giữa thẻ theo chiều ngang.
+  function theNghiHtml(moc, themHtml, an) {
+    return '<div class="the nghi' + (an ? ' an' : '') + '" data-nghi="1">' +
+      '<span class="the-in">' +
+        '<span class="the-body nghi-dau">' +
+          '<img class="nghi-ava" src="assets/avatar-tron.jpg" alt="">' +
+          '<span class="nghi-chuoi">' +
+            '<span class="nghi-chu">NO HOMEWORK, ENJOY YOUR DAY!</span>' +
+            '<span class="nghi-han">' +
+              '<i class="nghi-nhan">BUỔI HỌC TIẾP THEO TRONG</i>' +
+              '<b class="dhho-nghi" data-moc="' + (moc || 0) + '">…</b>' +
+            '</span>' +
+          '</span>' +
+        '</span>' +
+        '<span class="the-diem nghi-san">' + (themHtml || '') +
+          '<span class="nghi-khung"><canvas class="nghi-canvas"></canvas></span>' +
+        '</span>' +
+        '<button type="button" class="play nghi-play" title="Play the piggy game">' +
+          IC_CHOI + '</button>' +
+      '</span>' +
+    '</div>';
+  }
+
+  // Nhịp đồng hồ của thẻ nghỉ — mỗi trang gọi từ vòng 1 giây sẵn có của mình.
+  // ⭐ v1.49.0 — CHẠY TỪNG GIÂY `TIẾNG:PHÚT:GIÂY` (thầy chốt). Bản cũ chỉ có
+  // TIẾNG:PHÚT nên mỗi phút mới nhảy một lần, nhìn y như đồng hồ chết.
+  // Quá 24 tiếng thì số tiếng cứ cộng dồn (52:07:31).
+  function nhipNghi(goc) {
+    var ds = (goc || document).querySelectorAll('.dhho-nghi[data-moc]');
+    var hai = function (n) { return (n < 10 ? '0' : '') + n; };
+    for (var i = 0; i < ds.length; i++) {
+      var e = ds[i];
+      var moc = +e.getAttribute('data-moc');
+      var boc = e.parentElement;                   // .nghi-han (v1.50.0)
+      if (!moc) { e.textContent = '—'; continue; }
+      var con = moc - Date.now();
+      // Hết hạn thì bỏ luôn nhãn "BUỔI HỌC TIẾP THEO TRONG" (CSS
+      // `.nghi-han.het .nghi-nhan` ẩn nó), không thì đọc thành
+      // "…TIẾP THEO TRONG ĐÃ ĐẾN GIỜ HỌC".
+      if (con <= 0) {
+        e.textContent = 'ĐÃ ĐẾN GIỜ HỌC';
+        if (boc) boc.classList.add('het');
+        continue;
+      }
+      if (boc) boc.classList.remove('het');
+      var s = Math.floor(con / 1000);
+      e.textContent = Math.floor(s / 3600) + ':' + hai(Math.floor((s % 3600) / 60)) +
+                      ':' + hai(s % 60);
+    }
+  }
+
+  // Gắn sân chơi + nút ▶ cho MỌI thẻ nghỉ bên trong `goc`.
+  // ⛔ Gọi lại sau MỖI lần vẽ lại danh sách thẻ: DOM cũ rời cây thì vòng lặp cũ
+  // tự chết (xem `gaSanNghi`), nhưng DOM mới thì chưa ai gắn gì.
+  function gaTheNghi(goc, dsTen, lopGoc) {
+    var ds = (goc || document).querySelectorAll('.the.nghi');
+    for (var i = 0; i < ds.length; i++) {
+      (function (the) {
+        if (the.dataset.daGa === '1') return;
+        the.dataset.daGa = '1';
+        var canvas = the.querySelector('.nghi-canvas');
+        var nut = the.querySelector('.nghi-play');
+        if (!canvas || !nut) return;
+        var san = gaSanNghi(canvas, dsTen || [], lopGoc || '');
+        nut.addEventListener('click', function (e) {
+          e.preventDefault(); e.stopPropagation();
+          var sangGame = !san.laGame();
+          san.doiCheDo(sangGame ? 'game' : 'bong');
+          the.classList.toggle('dang-choi', sangGame);
+          nut.innerHTML = sangGame ? IC_VE : IC_CHOI;
+          nut.title = sangGame ? 'Back to bubbles' : 'Play the piggy game';
+        });
+        // ⛔ Đo lại khi cửa sổ đổi cỡ — canvas phải khớp khung thật, không thì
+        // hình bị kéo giãn nhoè (canvas không tự co theo CSS như ảnh).
+        window.addEventListener('resize', function () { san.doiCo(); });
+        // ⛔ Đo lại sau khi FONT nạp xong: khung thẻ cao lên đôi chút, đo sớm là
+        // canvas thấp hơn khung thật (đúng bẫy "đo layout quá sớm" 02/09).
+        if (document.fonts && document.fonts.ready) {
+          document.fonts.ready.then(function () { san.doiCo(); });
+        }
+      })(ds[i]);
+    }
+  }
+
+  /* ⭐ v1.78.0 — "CÓ BÀI MỚI" trên nút của MÀN CHỌN LỚP (thầy chốt 08/09/2026):
+     chấm đỏ khi nơi đó còn bài CÒN HẠN mà chính em này chưa làm xong hết.
+
+     ⛔ LUẬT 8️⃣ (Firestore tính tiền theo SỐ TÀI LIỆU): màn chọn hiện MỖI LẦN em mở
+     trang, nên hàm này phải rẻ. Ba chốt chặn:
+       · chỉ xét thẻ CÒN HẠN, tối đa 3 thẻ mới nhất mỗi nơi và 12 act tất cả;
+       · đi qua `diemCuaAct` — hàm đó hỏi `submitCount` (1 tài liệu) và dùng lại bản
+         nhớ trong máy 10 phút, KHÔNG liệt kê cả kho `scores`;
+       · `chuanDiem` nhớ VĨNH VIỄN trong máy.
+     ⛔ Kho lỗi/mất mạng thì coi như KHÔNG có bài mới — thà thiếu một chấm đỏ còn hơn
+     doạ em bằng chấm đỏ oan (cùng tinh thần "đừng lùi mù" của luật 8). */
+  function coBaiChuaXong(dl, maLop, tenEm) {
+    var ds = baiCuaLop(dl, maLop).filter(conHan).slice(0, 3);
+    var acts = [];
+    for (var i = 0; i < ds.length; i++) {
+      var k = actCuaBai(ds[i]);
+      for (var j = 0; j < k.length; j++) if (acts.length < 12) acts.push(k[j]);
+    }
+    if (!acts.length) return Promise.resolve(false);
+    return Promise.all(acts.map(function (k) {
+      return Promise.all([diemCuaAct(k.ma), chuanDiem(k.ma)])
+        .then(function (r) { return !xongAct(r[0], tenEm, r[1]); })
+        ['catch'](function () { return false; });
+    })).then(function (kq) {
+      for (var i = 0; i < kq.length; i++) if (kq[i]) return true;
+      return false;
+    })['catch'](function () { return false; });
+  }
+
+
+  /* ==========================================================================
+     ⭐⭐ v1.120.0 (21/09/2026, thầy chốt "ok build") — HỌC SINH NỘP ẢNH WORKSHEET
+     Khối `ws` trên trang bài (`bai.html`) có N ô nộp = N trang PDF của thầy. Mỗi ô
+     một ảnh JPEG (chụp/chọn ảnh, hoặc PDF em nộp được pdf.js tách trang ngay trên máy
+     em). Ảnh nén TRƯỚC khi lên (nếp [[nen-media-truoc-khi-luu]]): cạnh dài 1600 px
+     q0.82 (~200-350 KB) + ảnh nhỏ 320 px cho ô xem trước/dashboard.
+       Storage : nopBai/<LỚP>/<id bài>/<ô>/<mã HS>/t<n>.jpg (+ t<n>_nho.jpg) — luật chỉ
+                 nhận image/jpeg < 1,5 MB; ĐỌC ĐÓNG ⇒ xem bằng URL có token tải mà
+                 Storage trả về lúc upload (thầy chốt: đóng đọc, dùng token).
+       Firestore: lessonNop/<LỚP>__<id bài>__<ô>__<mã HS> = {lop, bai, o, ma, ten, trang, luc}
+                 `trang` = {"1": {luc, url, nho}, ...}; `get` mở, `list` chỉ thầy, hasOnly 7 trường.
+     Luật đăng 21/09 qua `app/tools/dang-luat-nop-anh.js` (15/15 kiểm bằng khoá công khai).
+     ⛔ Neo theo MÃ HS ([[bay-neo-vao-ten]]) — tên chỉ để thầy đọc trên dashboard.
+     ⛔ Upload là ĐÈ theo tên object: nộp lại trang n thì ảnh cũ mất (không có lịch sử).
+     ========================================================================== */
+  var NOP_BUCKET = 'aword-70dae.firebasestorage.app';
+  var NOP_MAX_CANH = 1600, NOP_NHO_CANH = 320, NOP_CHAT = 0.82;
+
+  function nopLopChuan(lop) { return String(lop || '').toUpperCase().replace(/[^A-Z0-9_.-]/g, '').slice(0, 30) || 'LOP'; }
+  function nopBaiChuan(bai) { return String(bai || '').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 200) || 'BAI'; }
+  function nopMaChuan(ma) { return String(ma || '').trim().replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 60); }
+  function nopId(lop, bai, o, ma) { return nopLopChuan(lop) + '__' + nopBaiChuan(bai) + '__' + (Math.max(0, +o || 0)) + '__' + nopMaChuan(ma); }
+  function nopTenObject(lop, bai, o, ma, n, nho) {
+    return 'nopBai/' + nopLopChuan(lop) + '/' + nopBaiChuan(bai) + '/' + (Math.max(0, +o || 0)) + '/' + nopMaChuan(ma) + '/t' + (+n || 1) + (nho ? '_nho' : '') + '.jpg';
+  }
+  function nopUrlFs(id) {
+    var g = gocFs();
+    return g ? (g.u + 'lessonNop/' + encodeURIComponent(id) + g.k) : '';
+  }
+
+  // Đọc bài nộp của MỘT em ở MỘT ô — trả {trang:{n:{luc,url,nho}}, luc} hoặc null (chưa nộp / lỗi).
+  function nopDoc(lop, bai, o, ma) {
+    var u = nopUrlFs(nopId(lop, bai, o, ma));
+    if (!u || !ma) return Promise.resolve(null);
+    return fetch(u, { cache: 'no-store' }).then(function (r) {
+      if (r.status === 404) return null;
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (j) { return j ? nopTuFs(j) : null; })['catch'](function () { return null; });
+  }
+  function nopTuFs(doc) {
+    var f = (doc && doc.fields) || {};
+    var trang = {};
+    var mv = f.trang && f.trang.mapValue && f.trang.mapValue.fields || {};
+    Object.keys(mv).forEach(function (n) {
+      var g = (mv[n].mapValue && mv[n].mapValue.fields) || {};
+      trang[n] = { luc: +((g.luc || {}).integerValue || (g.luc || {}).doubleValue || 0),
+                   url: String((g.url || {}).stringValue || ''), nho: String((g.nho || {}).stringValue || ''),
+                   // ⭐ v1.124.0 — `huy` = em đã bấm HUỶ trang này (không xoá, chỉ đánh dấu; luật
+                   // Firestore chỉ hasOnly 7 TRƯỜNG CẤP TÀI LIỆU, không khoá hình trong `trang` nên
+                   // thêm cờ này vào từng trang không đụng luật đã đăng — xem dang-luat-nop-anh.js).
+                   huy: !!(g.huy && g.huy.booleanValue),
+                   // ⭐ v1.125.0 — `thuTu` = vị trí em SẮP XẾP bằng kéo-thả (KHÁC khoá lưu trữ `n`,
+                   // vốn phải đứng yên vì đã gắn với đường dẫn ảnh trên Storage `t<n>.jpg`).
+                   thuTu: +((g.thuTu || {}).integerValue || (g.thuTu || {}).doubleValue || 0) };
+    });
+    return { lop: String((f.lop || {}).stringValue || ''), bai: String((f.bai || {}).stringValue || ''),
+             o: +((f.o || {}).integerValue || 0), ma: String((f.ma || {}).stringValue || ''),
+             ten: String((f.ten || {}).stringValue || ''), trang: trang,
+             luc: +((f.luc || {}).integerValue || (f.luc || {}).doubleValue || 0) };
+  }
+  function nopRaFs(d) {
+    var trang = {};
+    Object.keys(d.trang || {}).forEach(function (n) {
+      var t = d.trang[n] || {};
+      trang[String(n)] = { mapValue: { fields: {
+        luc: { integerValue: String(Math.round(+t.luc || 0)) },
+        url: { stringValue: String(t.url || '') }, nho: { stringValue: String(t.nho || '') },
+        huy: { booleanValue: !!t.huy },
+        thuTu: { integerValue: String(Math.round(+t.thuTu || 0)) } } } };
+    });
+    return { fields: {
+      lop: { stringValue: nopLopChuan(d.lop) }, bai: { stringValue: nopBaiChuan(d.bai) },
+      o: { integerValue: String(Math.max(0, +d.o || 0)) }, ma: { stringValue: nopMaChuan(d.ma) },
+      ten: { stringValue: String(d.ten || '').slice(0, 120) },
+      trang: { mapValue: { fields: trang } }, luc: { integerValue: String(Math.round(+d.luc || Date.now())) } } };
+  }
+  // Ghi ĐÈ trọn tài liệu (7 trường, đúng hasOnly). Trả Promise<true|false>.
+  function nopGhi(d) {
+    var id = nopId(d.lop, d.bai, d.o, d.ma);
+    var u = nopUrlFs(id);
+    if (!u) return Promise.resolve(false);
+    return fetch(u, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nopRaFs(d)) })
+      .then(function (r) { return r.ok; })['catch'](function () { return false; });
+  }
+
+  // Đẩy MỘT blob JPEG lên Storage — trả URL CÓ TOKEN (đọc được dù luật đóng), hoặc '' khi hỏng.
+  function nopDayBlob(ten, blob) {
+    var u = 'https://firebasestorage.googleapis.com/v0/b/' + NOP_BUCKET + '/o?uploadType=media&name=' + encodeURIComponent(ten);
+    return fetch(u, { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (j) {
+        var tk = String((j && j.downloadTokens) || '').split(',')[0];
+        if (!tk) return '';
+        return 'https://firebasestorage.googleapis.com/v0/b/' + NOP_BUCKET + '/o/' + encodeURIComponent(ten) + '?alt=media&token=' + encodeURIComponent(tk);
+      })['catch'](function () { return ''; });
+  }
+
+  // Nén ảnh: nguồn là Blob/File ảnh hoặc HTMLCanvasElement/ImageBitmap → {lon: Blob, nho: Blob}.
+  // Dùng canvas (mọi máy có), KHÔNG giữ ảnh gốc trong RAM sau khi vẽ (điện thoại yếu).
+  function nopNenAnh(nguon) {
+    return nopVeLenCanvas(nguon).then(function (cv) {
+      var lon = nopThuNho(cv, NOP_MAX_CANH), nho = nopThuNho(cv, NOP_NHO_CANH);
+      return Promise.all([nopToBlob(lon, NOP_CHAT), nopToBlob(nho, 0.72)]).then(function (bs) {
+        try { cv.width = 1; cv.height = 1; } catch (e) {}
+        return { lon: bs[0], nho: bs[1] };
+      });
+    });
+  }
+  function nopVeLenCanvas(nguon) {
+    if (nguon && nguon.getContext) return Promise.resolve(nguon);
+    if (typeof createImageBitmap === 'function' && nguon instanceof Blob) {
+      return createImageBitmap(nguon).then(function (bm) {
+        var cv = document.createElement('canvas'); cv.width = bm.width; cv.height = bm.height;
+        cv.getContext('2d').drawImage(bm, 0, 0); try { bm.close(); } catch (e) {}
+        return cv;
+      })['catch'](function () { return nopVeQuaImg(nguon); });
+    }
+    return nopVeQuaImg(nguon);
+  }
+  function nopVeQuaImg(blob) {
+    return new Promise(function (res, rej) {
+      var url = URL.createObjectURL(blob), im = new Image();
+      im.onload = function () {
+        var cv = document.createElement('canvas'); cv.width = im.naturalWidth; cv.height = im.naturalHeight;
+        cv.getContext('2d').drawImage(im, 0, 0); URL.revokeObjectURL(url); res(cv);
+      };
+      im.onerror = function () { URL.revokeObjectURL(url); rej(new Error('Không đọc được ảnh')); };
+      im.src = url;
+    });
+  }
+  function nopThuNho(cv, canhMax) {
+    var w = cv.width, h = cv.height, ti = Math.min(1, canhMax / Math.max(w, h));
+    if (ti >= 1) return cv;
+    var ra = document.createElement('canvas');
+    ra.width = Math.max(1, Math.round(w * ti)); ra.height = Math.max(1, Math.round(h * ti));
+    var c = ra.getContext('2d'); c.fillStyle = '#fff'; c.fillRect(0, 0, ra.width, ra.height);
+    c.drawImage(cv, 0, 0, ra.width, ra.height);
+    return ra;
+  }
+  function nopToBlob(cv, q) {
+    return new Promise(function (res) { cv.toBlob(function (b) { res(b); }, 'image/jpeg', q); });
+  }
+
+  // NỘP MỘT TRANG: nén → đẩy 2 ảnh → đọc tài liệu hiện có → ghi lại. `thuTu` = vị trí
+  // hiện tại trên lưới em đang xếp (mặc định "bây giờ" nếu không truyền — chỉ dùng khi
+  // gọi tay). Trả {ok, trang, loi}.
+  function nopTrang(ctx, n, nguon, thuTu) {
+    var lop = ctx.lop, bai = ctx.bai, o = ctx.o, ma = ctx.ma, ten = ctx.ten;
+    return nopNenAnh(nguon).then(function (b) {
+      if (b.lon.size >= 1.5 * 1024 * 1024) throw new Error('Ảnh quá nặng sau khi nén');
+      return Promise.all([nopDayBlob(nopTenObject(lop, bai, o, ma, n, false), b.lon),
+                          nopDayBlob(nopTenObject(lop, bai, o, ma, n, true), b.nho)]);
+    }).then(function (urls) {
+      if (!urls[0]) throw new Error('Kho ảnh từ chối (mạng hoặc luật)');
+      return nopDoc(lop, bai, o, ma).then(function (cu) {
+        var d = cu || { lop: lop, bai: bai, o: o, ma: ma, ten: ten, trang: {}, luc: 0 };
+        d.ten = ten || d.ten; d.trang = d.trang || {};
+        d.trang[String(n)] = { luc: Date.now(), url: urls[0], nho: urls[1] || urls[0],
+                                thuTu: thuTu != null ? +thuTu : Date.now() };
+        d.luc = Date.now();
+        return nopGhi(d).then(function (ok) {
+          if (!ok) throw new Error('Kho từ chối ghi bài nộp');
+          return { ok: true, trang: d.trang };
+        });
+      });
+    })['catch'](function (e) { return { ok: false, loi: (e && e.message) || String(e) }; });
+  }
+
+  // ⭐ v1.125.0 — GHI LẠI THỨ TỰ sau khi em kéo-thả sắp xếp lại các trang đã NỘP THẬT
+  // (trang đang chờ/`WS_CHO` chỉ nằm ở trình duyệt, không cần gọi hàm này). `doiFs` =
+  // {n: thuTuMoi, ...} — chỉ những trang thật sự đổi vị trí. Trả {ok, trang, loi}.
+  function nopDatThuTu(ctx, doiFs) {
+    var lop = ctx.lop, bai = ctx.bai, o = ctx.o, ma = ctx.ma, ten = ctx.ten;
+    return nopDoc(lop, bai, o, ma).then(function (cu) {
+      var d = cu || { lop: lop, bai: bai, o: o, ma: ma, ten: ten, trang: {}, luc: 0 };
+      d.ten = ten || d.ten; d.trang = d.trang || {};
+      Object.keys(doiFs || {}).forEach(function (n) { if (d.trang[n]) d.trang[n].thuTu = +doiFs[n]; });
+      d.luc = Date.now();
+      return nopGhi(d).then(function (ok) {
+        if (!ok) throw new Error('Kho từ chối ghi thứ tự');
+        return { ok: true, trang: d.trang };
+      });
+    })['catch'](function (e) { return { ok: false, loi: (e && e.message) || String(e) }; });
+  }
+
+  // ⭐ v1.124.0 (thầy chốt) — HUỶ MỘT TRANG đã nộp (nút tròn nhỏ trên ô): đọc tài liệu
+  // hiện có → đánh dấu `trang[n].huy = true` → ghi ĐÈ lại (đúng nếp `nopGhi`, hasOnly 7
+  // trường cấp tài liệu, KHÔNG đụng luật). ⛔ KHÔNG xoá — ảnh/`url` vẫn còn nguyên để
+  // thầy xem lại bình thường trên dashboard; trang huỷ chỉ không tính vào "đủ" nữa bên
+  // trang em (`wsSoChuDong`). Trả {ok, trang, loi}.
+  function nopHuyTrang(ctx, n) {
+    var lop = ctx.lop, bai = ctx.bai, o = ctx.o, ma = ctx.ma, ten = ctx.ten;
+    return nopDoc(lop, bai, o, ma).then(function (cu) {
+      var d = cu || { lop: lop, bai: bai, o: o, ma: ma, ten: ten, trang: {}, luc: 0 };
+      d.ten = ten || d.ten; d.trang = d.trang || {};
+      var t = d.trang[String(n)];
+      if (!t || !t.url) throw new Error('Trang này chưa nộp gì để huỷ');
+      t.huy = true;
+      d.luc = Date.now();
+      return nopGhi(d).then(function (ok) {
+        if (!ok) throw new Error('Kho từ chối ghi bài huỷ');
+        return { ok: true, trang: d.trang };
+      });
+    })['catch'](function (e) { return { ok: false, loi: (e && e.message) || String(e) }; });
+  }
+
+  var nopBai = { id: nopId, doc: nopDoc, ghi: nopGhi, dayBlob: nopDayBlob, nenAnh: nopNenAnh,
+                 tenObject: nopTenObject, nopTrang: nopTrang, huyTrang: nopHuyTrang, datThuTu: nopDatThuTu,
+                 tuFs: nopTuFs, BUCKET: NOP_BUCKET };
+
+  window.AWC = {
+    CFG: CFG,
+    // ⭐ v1.78.0 — khóa học + một mã ở nhiều nơi + chấm "CÓ BÀI MỚI"
+    dsNoiHoc: dsNoiHoc, laKhoa: laKhoa, moiNoiTheoMa: moiNoiTheoMa,
+    coBaiChuaXong: coBaiChuaXong,
+    // ⭐ v1.48.0 — thẻ "không giao bài" + lịch học + sân chơi
+    nghiCua: nghiCua, nghiTt: nghiTt, datNghi: datNghi, napLopHoc: napLopHoc,
+    buoiTiepTheo: buoiTiepTheo, thuTuChuoi: thuTuChuoi, gaSanNghi: gaSanNghi,
+    // ⭐ v1.81.0 — "LỚP ĐANG HỌC" (giờ học nhồi sẵn trong lop.json)
+    lichCua: lichCua, buoiChuaMoc: buoiChuaMoc, theDangHoc: theDangHoc,
+    nghiConHieuLuc: nghiConHieuLuc,
+    theNghiHtml: theNghiHtml, nhipNghi: nhipNghi, gaTheNghi: gaTheNghi,
+    chuAnToan: chuAnToan, chuanMa: chuanMa, khoaTen: khoaTen, chuanTen: chuanTen, khoaEm: khoaEm, datBangEm: datBangEm, lopHien: lopHien,
+    napDuLieu: napDuLieu, napJson: napJson,
+    lopTheoMa: lopTheoMa, baiCuaLop: baiCuaLop, timTheoMa: timTheoMa,
+    // ⭐⭐ v1.95.0 — em nào có mặt ở một bài (bỏ em vào lớp sau ngày giao)
+    ngayGiaoBai: ngayGiaoBai, emCoMatOBai: emCoMatOBai, caLopCuaBai: caLopCuaBai,
+    caLopDayDu: caLopDayDu, emKhongTinh: emKhongTinh, emVaoMuon: emVaoMuon,
+    xepHangAct: xepHangAct,
+    // ⭐⭐ v1.82.0 — HỌC SINH ĐẶC BIỆT (phụ huynh luyện bài cùng con)
+    emDacBietTheoMa: emDacBietTheoMa,
+    emDangHoc: emDangHoc, batBuocDangNhap: batBuocDangNhap, luuEm: luuEm, thoat: thoat,
+    // ⭐ v1.111.0 — bản ghi nhớ THÔ (index.html cần biết "máy này nhớ mã nào" ngay cả
+    // khi `emDangHoc` trả null vì em nhiều nơi chưa chọn) + chữ tắt/màu tên cho đầu thẻ
+    docNho: docNho, chuTatBong: chuTatBong, itMau: itMau,
+    // ⭐ v1.112.0 — cờ "tab này đã bấm chọn nơi" (em ≥2 nơi luôn qua màn chọn khi mở trang)
+    danhDauDaChon: danhDauDaChon, daChonTabNay: daChonTabNay,
+    giuXemNhuQuery: giuXemNhuQuery,
+    bam: bam, laMaQuanLy: laMaQuanLy,
+    laAdmin: laAdmin, datAdmin: datAdmin, thoatAdmin: thoatAdmin,
+    diemCuaAct: diemCuaAct, chuanDiem: chuanDiem, xongAct: xongAct,
+    actCuaBai: actCuaBai, wsCuaBai: wsCuaBai, ngheCuaBai: ngheCuaBai, maLesson: maLesson, tenBai: tenBai,
+    tenWorksheet: tenWorksheet,   // ⭐ v1.103.0 — tiêu đề các worksheet (thẻ WORKSHEET)
+    wsHienCuaThe: wsHienCuaThe,   // ⭐ v1.130.0 — worksheet hiện trên thẻ: theo chặng đang mở
+    nopBai: nopBai,               // ⭐ v1.120.0 — học sinh nộp ảnh worksheet (lessonNop + Storage)
+    // ⭐ v1.76.0 — dạng bài STAGE (chia chặng)
+    laBaiStage: laBaiStage, changCuaBai: changCuaBai, xetChang: xetChang,
+    changHien: changHien, emChuaXongChang: emChuaXongChang,
+    changChoMo: changChoMo,   // ⭐ v1.118.0 — chặng quá hạn còn em chưa xong, chờ mở chặng kế
+    changCuConThieu: changCuConThieu,   // ⭐ v1.128.0 — chặng cũ (trước chặng đang chạy) còn em chưa xong
+    boQuaCua: boQuaCua, tinhCaCua: tinhCaCua, datTinhCa: datTinhCa,
+    // ⭐ v1.137.0 — bỏ qua em THEO TỪNG CHẶNG
+    boQuaChangGoc: boQuaChangGoc, boQuaChangCua: boQuaChangCua, datBoQuaChang: datBoQuaChang,
+    laStageCoChang: laStageCoChang, soChangCuaAct: soChangCuaAct,
+    caLopCuaAct: caLopCuaAct, khongTinhCuaAct: khongTinhCuaAct,
+    moChangCua: moChangCua, mocActHan: mocActHan,
+    datBoQua: datBoQua, datMoChang: datMoChang,
+    tenDang: tenDang, coTenRieng: coTenRieng, tenO: tenO,
+    mocHan: mocHan, chuHan: chuHan, chuHanChang: chuHanChang, trangCuaBai: trangCuaBai,
+    // v1.20.0 — hạn sửa riêng từng thẻ (dashboard ghi, mọi trang đọc)
+    hanCua: hanCua, daSuaHan: daSuaHan, datHanSua: datHanSua,
+    // v1.35.0 — trạng thái thẻ (ẩn / tạm khoá / xoá mềm) + "còn hạn" dùng chung
+    trangThaiThe: trangThaiThe, datTrangThai: datTrangThai, conHan: conHan,
+    // ⭐ v1.37.0 — avatar dùng chung + chấm đỏ tin nhắn mới
+    avSlugLop: avSlugLop, avSlugTen: avSlugTen, avUrl: avUrl, gaAvatar: gaAvatar,
+    napAvatarKho: napAvatarKho, deAvatarKho: deAvatarKho, batAvatarKho: batAvatarKho,
+    avTenKhop: avTenKhop, avTenDayDu: avTenDayDu,
+    mocDaXem: mocDaXem, danhDauDaXem: danhDauDaXem,
+    mocTinMoi: mocTinMoi, datMocTinMoi: datMocTinMoi,
+    chatChuaDoc: chatChuaDoc, veChamDo: veChamDo,
+  };
+})();

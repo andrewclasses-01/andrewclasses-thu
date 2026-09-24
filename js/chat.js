@@ -1,0 +1,431 @@
+/* ============================================================
+   chat.js — CUỘC TRÒ CHUYỆN CỦA LỚP (web v1.11.0)
+
+   Dùng CHUNG cho hai chỗ:
+     · `lop.html`       — khung chat của học sinh, mỗi em thấy lớp mình
+     · `dashboard.html` — khung chat của thầy, đổi lớp là đổi phòng
+
+   Kho tin nằm trong Firestore của AWord (project `aword-70dae`, dùng chung như
+   `bai-sp.html` đã làm — thầy chốt việc dùng chung project ở phiên trước):
+
+       classChat/{mã lớp}/messages/{id tự sinh}
+         name      tên hiển thị người gửi
+         code      mã đăng nhập của em (thầy gửi thì để 'GV')
+         role      'hs' | 'gv'
+         text      nội dung, tối đa 300 chữ
+         createdAt mốc mili giây
+         cx        (⭐ #8, tuỳ chọn) map mã người thả -> {ma, ten} — CẢM XÚC
+
+       classChatArchive/{id tự sinh}   (⭐ #Đợt D — "Lưu trữ & làm mới")
+         lop       mã lớp (B1AH…)
+         tenLop    tên lớp lúc lưu (hiện cho dễ đọc, phòng khi đổi tên sau)
+         luc       mốc mili giây lúc lưu
+         soTin     số tin trong gói (để hiện nhanh, khỏi mở ra đếm)
+         tin       MẢNG snapshot y hệt khiCo() trả về lúc lưu
+
+   ⭐ v1.52.0 (GÓI BẢO MẬT C, 02/09/2026): luật `classChat` đã đổi — `delete: if laThay()`,
+   tin `role:'gv'` và `classChatArchive` cũng đòi `laThay()` (phiên Firebase Auth của thầy,
+   xem js/thay.js). Khối luật chép dưới đây là bản CŨ (Đợt D), giữ để tra; bản đang chạy
+   xem `myLesson-data/tai-lieu/LUAT FIRESTORE CAN DAN (GOI C — THAY DANG NHAP).md`.
+
+   ⛔⛔ CHƯA DÁN LUẬT FIRESTORE MỚI THÌ CẢM XÚC/XOÁ TIN/LƯU TRỮ KHÔNG CHẠY (báo
+   `permission-denied`) — NHẮN VÀ ĐỌC vẫn chạy bình thường (luật cũ vẫn đúng
+   cho hai việc đó). Thầy vào Firebase Console → Firestore Database → Rules,
+   THAY khối `classChat` cũ bằng khối này (giữ nguyên `classChatArchive` mới
+   thêm bên dưới), rồi bấm Publish — chi tiết đầy đủ + lý do:
+   `D:\APP AND DATA\myLesson-data\tai-lieu\LUAT FIRESTORE CAN DAN (…THEM CAM XUC).md`
+
+       match /classChat/{lop}/messages/{id} {
+         allow read: if true;
+         allow create: if request.resource.data.keys().hasOnly(
+                            ['name','code','role','text','createdAt'])
+           && request.resource.data.text is string
+           && request.resource.data.text.size() > 0
+           && request.resource.data.text.size() <= 300
+           && request.resource.data.name is string
+           && request.resource.data.name.size() <= 60
+           && request.resource.data.role in ['hs','gv']
+           && request.resource.data.createdAt is number;
+         // ⭐ #8 — CHỈ cho sửa trường `cx` (thả/gỡ cảm xúc), mọi trường khác
+         // (text/name/…) vẫn KHOÁ CỨNG như cũ — không ai sửa lại được lời đã nói.
+         allow update: if request.resource.data.diff(resource.data)
+                            .affectedKeys().hasOnly(['cx'])
+           && request.resource.data.cx is map;
+         // ⭐ Đợt D — MỞ xoá (thầy chốt, biết rõ giới hạn: không có đăng nhập
+         // thật nên KHÔNG thể ép luật "chỉ đúng người gửi/đúng thầy mới xoá
+         // được" — trang chỉ tự chặn ở GIAO DIỆN, ai rành kỹ thuật vẫn gọi
+         // thẳng Firestore xoá được tin của người khác).
+         allow delete: if true;
+       }
+       match /classChatArchive/{id} {
+         allow read: if true;
+         allow create: if request.resource.data.keys().hasOnly(
+                            ['lop','tenLop','luc','soTin','tin'])
+           && request.resource.data.lop is string
+           && request.resource.data.tin is list;
+         allow update, delete: if false;   // kho lưu trữ — chỉ thêm, không sửa/xoá
+       }
+
+   ⚠️ Luật này cho AI CŨNG ĐỌC VÀ GỬI ĐƯỢC (không đòi đăng nhập) — đúng mức tin
+   cậy mà cả hệ này đang có: mã học sinh vốn nằm công khai trong `lop.json`.
+   ============================================================ */
+
+/* ============================================================
+   ⭐ QUY ĐỊNH GIAO DIỆN KHUNG CHAT (thầy chốt 15/09/2026) — đọc trước khi build
+   tính năng chat mới, kể cả `dmChat` riêng tư sau này nếu có:
+
+   Khung chat của GIÁO VIÊN (`dashboard.html`) và HỌC SINH (`lop.html`) dùng
+   GẦN NHƯ Y HỆT một khuôn giao diện + hành vi (bong bóng, avatar, gửi/đọc tin,
+   thả cảm xúc). GV chỉ có thêm một số tính năng PHỤ, NHỎ, nằm NGOÀI phần cốt
+   lõi đó:
+     · Gắn thông báo (ghim một tin lên đầu phòng)
+     · Lưu trữ cuộc trò chuyện (nút 🗄 "Lưu trữ & làm mới" → `luuKho()`)
+
+   Ngoài hai việc phụ này, KHÔNG tách riêng khuôn/luồng dữ liệu cho GV lẫn HS.
+   Bất kỳ tính năng chat nào thêm sau này đều nên dùng CHUNG một hàm/khuôn cho
+   cả hai trang (như `nghe()`/`gui()`/`suaCx()` hiện tại), chỉ ẩn/hiện nút phụ
+   theo `vaiTro==='gv'` ở tầng giao diện — ĐỪNG viết hai bản logic chat khác
+   nhau cho hai vai trò.
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var SDK = 'https://www.gstatic.com/firebasejs/12.9.0';
+  var CAU_HINH = {
+    apiKey: 'AIzaSyAV_yoyAQM2fKKdOsJyuAxxf4AN7MsF7XY',
+    authDomain: 'aword-70dae.firebaseapp.com',
+    projectId: 'aword-70dae',
+    storageBucket: 'aword-70dae.firebasestorage.app',
+    messagingSenderId: '399279049436',
+    appId: '1:399279049436:web:b9b34dcfb34732aa744219'
+  };
+  var TOI_DA_CHU = 300;      // phải khớp luật Firestore ở trên
+  // ⛔⛔ CON SỐ NÀY LÀ TIỀN — ĐỪNG NÂNG LÊN CHO "XEM ĐƯỢC NHIỀU HƠN" (28/08/2026)
+  // Firestore tính MỘT LƯỢT ĐỌC CHO MỖI TÀI LIỆU mà `onSnapshot` kéo về ở nhịp
+  // đầu. `noiChat()` chạy TỰ ĐỘNG lúc mở `lop.html` (không đợi em bấm vào cột
+  // chat), và trang KHÔNG bật bộ nhớ đệm Firestore ⇒ mỗi lần một em mở/tải lại
+  // trang lớp là ĐỌC LẠI ĐỦ TỪNG ẤY TÀI LIỆU TỪ MÁY CHỦ.
+  //   200 tin × 156 em × 2-3 lượt mở/ngày  ⇒  ~90.000 lượt đọc/ngày
+  //   Gói miễn phí chỉ có 50.000 lượt/ngày cho CẢ project (chung với AWord +
+  //   mySpeaking) — cạn là kho trả 429 "Quota exceeded" cho MỌI phép đọc.
+  // Đo thật 28/08/2026: kho `aword-70dae` cạn sạch, kéo sập luôn SP CHECK của
+  // A2B (thẻ speaking đứng ở "Đang đọc dữ liệu…", em bấm vào thì báo oan
+  // "Lớp mình chưa có buổi speaking nào đang mở").
+  // 👉 Tin cũ hơn 30 không mất đi đâu cả — thầy có nút "🗄 Lưu trữ & làm mới"
+  //    bên dashboard để cất nguyên phòng vào `classChatArchive` rồi xem lại,
+  //    và từ v1.109.x hai trang chat còn có "kéo lên tải thêm" (`taiThem()`
+  //    bên dưới) — CHỈ tốn lượt đọc khi có người thật sự kéo lên xem.
+  var TOI_DA_TIN = 30;       // chỉ kéo về 30 tin gần nhất (xem khối ⛔ trên)
+  // ⭐ "Kéo lên tải thêm" (15/09/2026) — mỗi lần kéo lên đầu khung chat thì tải
+  // thêm đúng ngần này tin CŨ HƠN, một lần, KHÔNG mở thêm kênh sống (xem
+  // `taiThem()` bên dưới). Thầy chốt 20/lần — nhẹ tay hơn cả bản tải đầu.
+  var TOI_DA_TIN_THEM = 20;
+
+  // Nạp SDK kiểu lười: trang nào không mở chat thì không tải gì cả (~120KB).
+  // (v1.17.0) ⛔ KHÔNG initializeApp mù quáng: khối SPEAKING của dashboard cũng
+  // nạp SDK này — bên nào chạy sau mà cứ initializeApp là dính lỗi duplicate-app
+  // và chat chết lặng. Ai đến trước thì tạo app, ai đến sau thì DÙNG CHUNG.
+  var _p = null;
+  function db() {
+    if (!_p) {
+      _p = (async function () {
+        var appMod = await import(SDK + '/firebase-app.js');
+        var fsMod = await import(SDK + '/firebase-firestore.js');
+        var app = (appMod.getApps && appMod.getApps().length)
+          ? appMod.getApp()
+          : appMod.initializeApp(CAU_HINH);
+        return { fs: fsMod, db: fsMod.getFirestore(app) };
+      })();
+    }
+    return _p;
+  }
+
+  /* ============================================================
+     ⭐ v1.80.0 — DẤU MÁY (thầy chốt 08/09/2026, "bản gọn")
+
+     VÌ SAO CÓ: thầy hỏi "điều tra được em nào lấy ID của bạn để chat không".
+     Câu trả lời lúc đó là KHÔNG — tin chỉ lưu 5 trường, mà Firestore ghi
+     THẲNG từ máy em nên không có IP, không có thiết bị, không có tài khoản
+     (em chỉ gõ mã, mã lại nằm công khai trong `lop.json`). Google Cloud có
+     loại nhật ký ghi IP nhưng mặc định TẮT và KHÔNG hồi tố.
+
+     ĐÂY LÀ GÌ: một chuỗi ngẫu nhiên vô nghĩa, sinh MỘT LẦN trên mỗi máy rồi
+     cất trong trình duyệt máy đó. KHÔNG phải IP, không lộ danh tính, không
+     lần ra được ai ở đâu. Nó chỉ trả lời đúng một câu:
+         "hai tin này có phải từ CÙNG MỘT MÁY không?"
+     Nhờ vậy dashboard bắt được cảnh "một máy bật hai mã học sinh".
+
+     ⚠️ BA GIỚI HẠN — đã nói với thầy trước khi build, đừng quên:
+       · KHÔNG hồi tố. Mọi tin trước 08/09/2026 vĩnh viễn không có dấu máy.
+       · Xoá dữ liệu duyệt / cửa sổ ẩn danh / đổi máy ⇒ dấu máy đổi theo, em
+         nào rành sẽ né được. (Chiều ngược lại vẫn chắc: một máy hai mã là lộ.)
+       · CÓ THỂ OAN. Hai anh em ruột dùng chung máy cũng bị báo "một máy hai
+         mã". Đây là DẤU HIỆU ĐỂ THẦY XEM VÀ HỎI, không phải bằng chứng kết tội.
+
+     ⛔⛔ LUẬT FIRESTORE: khối `classChat` khoá cứng bằng
+     `hasOnly(['name','code','role','text','createdAt'])` — thêm trường thứ 6
+     mà chưa dán luật mới là Firestore TỪ CHỐI MỌI TIN, cả 10 lớp mất chat.
+     Vì thế `gui()` bên dưới có ĐƯỜNG LÙI: ghi kèm dấu máy mà dính
+     `permission-denied` thì tự ghi lại theo kiểu CŨ (5 trường). Nghĩa là đẩy
+     web lên trước khi dán luật cũng KHÔNG chết chat — chỉ là chưa có dấu máy.
+     Luật cần dán: `myLesson-data/tai-lieu/LUAT FIRESTORE CAN DAN (08-09 THEM DAU MAY).md`
+     ============================================================ */
+  var KHOA_MAY = 'awc_may';
+  var _may = null;
+  function dauMay() {
+    if (_may !== null) return _may;
+    try {
+      var m = localStorage.getItem(KHOA_MAY);
+      if (!m || String(m).length < 6) {
+        // 10 ký tự base36. Không dính gì tới máy thật (không lấy màn hình, font,
+        // card đồ hoạ…) — cố ý: chỉ cần PHÂN BIỆT máy, không cần NHẬN DẠNG máy.
+        m = '';
+        for (var i = 0; i < 10; i++) {
+          m += Math.floor(Math.random() * 36).toString(36);
+        }
+        localStorage.setItem(KHOA_MAY, m);
+      }
+      _may = String(m).slice(0, 20);
+    } catch (e) {
+      // Cửa sổ ẩn danh / trình duyệt chặn lưu: chịu, gửi tin không kèm dấu máy.
+      _may = '';
+    }
+    return _may;
+  }
+
+  var dungNghe = null;       // hàm gỡ listener của phòng đang nghe
+  var phongDangNghe = '';
+
+  // Nghe MỘT phòng. Gọi lại với lớp khác thì tự bỏ phòng cũ — dashboard đổi lớp
+  // liên tục, không gỡ là mấy listener chồng nhau, tin của lớp này nhảy sang lớp kia.
+  //   khiCo(ds)  ds = [{id, ten, ma, vaiTro, chu, luc}] đã xếp cũ -> mới
+  //   khiLoi(e)  gọi khi Firestore từ chối (thường là CHƯA DÁN LUẬT)
+  function nghe(maLop, khiCo, khiLoi) {
+    thoi();
+    phongDangNghe = maLop;
+    db().then(function (f) {
+      if (phongDangNghe !== maLop) return;         // đã đổi lớp trong lúc chờ nạp
+      var q = f.fs.query(
+        f.fs.collection(f.db, 'classChat', maLop, 'messages'),
+        f.fs.orderBy('createdAt', 'desc'),
+        f.fs.limit(TOI_DA_TIN)
+      );
+      dungNghe = f.fs.onSnapshot(q, function (snap) {
+        var ds = [];
+        snap.forEach(function (d) {
+          var x = d.data() || {};
+          ds.push({
+            id: d.id, ten: x.name || '?', ma: x.code || '',
+            vaiTro: x.role === 'gv' ? 'gv' : 'hs',
+            chu: x.text || '', luc: Number(x.createdAt) || 0,
+            cx: x.cx || {},
+            may: x.may || ''            /* ⭐ v1.80.0 — rỗng với mọi tin cũ */
+          });
+        });
+        ds.reverse();                              // Firestore trả mới->cũ, ta hiện cũ->mới
+        khiCo(ds);
+      }, function (e) {
+        if (khiLoi) khiLoi(e);
+      });
+    })['catch'](function (e) { if (khiLoi) khiLoi(e); });
+  }
+
+  function thoi() {
+    if (dungNghe) { try { dungNghe(); } catch (e) {} }
+    dungNghe = null;
+    phongDangNghe = '';
+  }
+
+  // ⭐ "Kéo lên tải thêm" (15/09/2026) — lấy MỘT LẦN (getDocs, KHÔNG onSnapshot)
+  // một trang tin CŨ HƠN mốc `truoc` (= createdAt của tin cũ nhất đang hiện
+  // trên màn). Trang gọi hàm này khi người dùng cuộn lên sát đầu khung chat —
+  // xem hai trang `lop.html`/`dashboard.html` (`taiThemCu()`).
+  //
+  // ⛔ Cố ý KHÔNG mở thêm onSnapshot cho từng trang cũ: tin cũ gần như đứng
+  // yên, mở kênh sống cho nó là tốn thêm một lượt đọc MỖI KHI có ai thả cảm
+  // xúc/GV xoá tin trong đó — cùng đúng bài học "CON SỐ NÀY LÀ TIỀN" của
+  // `TOI_DA_TIN` ở trên, chỉ khác là bài học đó nói về listener chính chứ
+  // không phải trang phân trang này.
+  //
+  // Trả Promise<mảng ds> (khuôn y hệt `nghe()`, xếp CŨ -> MỚI); mảng rỗng
+  // nghĩa là đã chạm tin đầu tiên của phòng — nơi gọi tự khoá không hỏi nữa.
+  function taiThem(maLop, truoc, khiCo, khiLoi) {
+    return db().then(function (f) {
+      var q = f.fs.query(
+        f.fs.collection(f.db, 'classChat', maLop, 'messages'),
+        f.fs.orderBy('createdAt', 'desc'),
+        f.fs.where('createdAt', '<', Number(truoc) || 0),
+        f.fs.limit(TOI_DA_TIN_THEM)
+      );
+      return f.fs.getDocs(q);
+    }).then(function (snap) {
+      var ds = [];
+      snap.forEach(function (d) {
+        var x = d.data() || {};
+        ds.push({
+          id: d.id, ten: x.name || '?', ma: x.code || '',
+          vaiTro: x.role === 'gv' ? 'gv' : 'hs',
+          chu: x.text || '', luc: Number(x.createdAt) || 0,
+          cx: x.cx || {}, may: x.may || ''
+        });
+      });
+      ds.reverse();
+      if (khiCo) khiCo(ds);
+      return ds;
+    })['catch'](function (e) { if (khiLoi) khiLoi(e); throw e; });
+  }
+
+  // Gửi một tin. Trả Promise; hỏng thì reject để nơi gọi báo cho người dùng.
+  function gui(maLop, tin) {
+    var chu = String(tin.chu || '').trim().slice(0, TOI_DA_CHU);
+    if (!chu) return Promise.reject(new Error('trống'));
+    return db().then(function (f) {
+      var oChat = f.fs.collection(f.db, 'classChat', maLop, 'messages');
+      var goc = {
+        name: String(tin.ten || '?').slice(0, 60),
+        code: String(tin.ma || '').slice(0, 40),
+        role: tin.vaiTro === 'gv' ? 'gv' : 'hs',
+        text: chu,
+        createdAt: Date.now()
+      };
+      var may = dauMay();
+      if (!may) return f.fs.addDoc(oChat, goc);        // ẩn danh: gửi kiểu cũ luôn
+
+      var kem = Object.assign({ may: may }, goc);
+      return f.fs.addDoc(oChat, kem)['catch'](function (e) {
+        /* ⛔ ĐƯỜNG LÙI — xem khối "DẤU MÁY" ở đầu file. CHỈ lùi khi kho từ chối
+           vì luật (`permission-denied`): đó đúng là cảnh "luật cũ còn hasOnly 5
+           trường". Lỗi khác (mất mạng, hết hạn mức…) mà cũng gửi lại là tin
+           HIỆN HAI LẦN — nên để nó ném ra cho nơi gọi báo người dùng. */
+        var ma = String((e && (e.code || e.message)) || '');
+        if (ma.indexOf('permission-denied') < 0) throw e;
+        return f.fs.addDoc(oChat, goc);
+      });
+    });
+  }
+
+  // ⭐ #8 — Thả/gỡ cảm xúc CỦA MỘT NGƯỜI trên MỘT tin (dot-path nên không đụng
+  // cảm xúc của người khác đang có trên cùng tin). `ma` rỗng = gỡ.
+  // ⭐ v1.33.0 — thêm `luc` (mốc mili giây lúc thả) vào mỗi cảm xúc: dashboard
+  // dùng làm MỘT trong ba dấu vết tính "hoạt động gần đây" (xem
+  // `hoatDongGanDayCuaLop()` bên dashboard.html). ⛔ Không cần đổi luật
+  // Firestore: luật hiện tại chỉ kiểm `cx is map`, không giới hạn các trường
+  // con bên trong — thêm trường mới vẫn qua được luật cũ.
+  function suaCx(maLop, tinId, maNguoi, ma, ten) {
+    var khoa = String(maNguoi || '').replace(/[.$#[\]/]/g, '_');
+    if (!khoa) return Promise.reject(new Error('thieu-ma-nguoi'));
+    return db().then(function (f) {
+      var truong = 'cx.' + khoa;
+      var patch = {};
+      patch[truong] = ma ? { ma: String(ma), ten: String(ten || '?').slice(0, 60), luc: Date.now() }
+                          : f.fs.deleteField();
+      return f.fs.updateDoc(f.fs.doc(f.db, 'classChat', maLop, 'messages', tinId), patch);
+    });
+  }
+
+  // Xoá MỘT tin. Không có đăng nhập thật nên trang gọi hàm này TỰ CHỊU TRÁCH
+  // NHIỆM kiểm "ai được xoá tin nào" ở phía giao diện — xem đầu file.
+  function xoa(maLop, tinId) {
+    return db().then(function (f) {
+      return f.fs.deleteDoc(f.fs.doc(f.db, 'classChat', maLop, 'messages', tinId));
+    });
+  }
+
+  // ⭐ Đợt D — "Lưu trữ & làm mới": chép NGUYÊN mảng tin đang có vào một tài
+  // liệu kho, để dashboard xoá sạch phòng mà không mất dấu vết cũ.
+  function luuKho(maLop, tenLop, dsTin) {
+    return db().then(function (f) {
+      return f.fs.addDoc(f.fs.collection(f.db, 'classChatArchive'), {
+        lop: String(maLop || ''), tenLop: String(tenLop || maLop || ''),
+        luc: Date.now(), soTin: (dsTin || []).length,
+        tin: (dsTin || []).map(function (t) {
+          /* ⭐ v1.80.0 — giữ luôn dấu máy vào kho lưu trữ, để sau khi "làm mới"
+             phòng chat thầy vẫn tra ngược được. Luật `classChatArchive` KHÔNG
+             cần đổi: nó chỉ kiểm `tin is list`, không soi bên trong. */
+          return { ten: t.ten, ma: t.ma, vaiTro: t.vaiTro, chu: t.chu, luc: t.luc,
+                   cx: t.cx || {}, may: t.may || '' };
+        })
+      });
+    });
+  }
+
+  // ⭐ 28/08 — CHẤM ĐỎ báo tin mới trên nút lớp (dashboard.html): đọc MỘT LẦN
+  // (getDocs, không giữ kênh sống như nghe() ở trên) tin mới nhất của MỘT lớp
+  // — đúng 1 lượt đọc Firestore mỗi lần gọi. Dashboard gọi hàm này cho mọi lớp
+  // ĐÚNG MỘT LẦN lúc mở/tải lại trang (thầy chốt: rẻ hơn giữ listener sống cho
+  // cả chục lớp cùng lúc — xem mục 0‼ luật 8️⃣ trong BAN GIAO.md, cùng họ bẫy
+  // vừa làm cạn hạn mức 429 sáng 28/08). Trả về mốc `createdAt` (ms) của tin
+  // mới nhất, hoặc 0 nếu lớp chưa ai nhắn gì.
+  function tinMoiNhat(maLop) {
+    return db().then(function (f) {
+      var q = f.fs.query(
+        f.fs.collection(f.db, 'classChat', maLop, 'messages'),
+        f.fs.orderBy('createdAt', 'desc'),
+        f.fs.limit(1)
+      );
+      return f.fs.getDocs(q);
+    }).then(function (snap) {
+      var luc = 0;
+      snap.forEach(function (d) { luc = Number((d.data() || {}).createdAt) || 0; });
+      return luc;
+    });
+  }
+
+  // Danh sách gói đã lưu của MỘT lớp, mới nhất trước.
+  function dsKho(maLop) {
+    return db().then(function (f) {
+      var q = f.fs.query(
+        f.fs.collection(f.db, 'classChatArchive'),
+        f.fs.where('lop', '==', maLop),
+        f.fs.orderBy('luc', 'desc'),
+        f.fs.limit(30)
+      );
+      return f.fs.getDocs(q);
+    }).then(function (snap) {
+      var ra = [];
+      snap.forEach(function (d) { ra.push(Object.assign({ id: d.id }, d.data())); });
+      return ra;
+    });
+  }
+
+  // "Hôm nay 16:02" / "Hôm qua 20:15" / "18/8 20:15"
+  function chuGio(ms) {
+    if (!ms) return '';
+    var d = new Date(ms), nay = new Date();
+    var hai = function (n) { return (n < 10 ? '0' : '') + n; };
+    var gio = d.getHours() + ':' + hai(d.getMinutes());
+    var cungNgay = function (a, b) {
+      return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth()
+        && a.getDate() === b.getDate();
+    };
+    if (cungNgay(d, nay)) return 'Hôm nay ' + gio;
+    var homQua = new Date(nay.getFullYear(), nay.getMonth(), nay.getDate() - 1);
+    if (cungNgay(d, homQua)) return 'Hôm qua ' + gio;
+    return d.getDate() + '/' + (d.getMonth() + 1) + ' ' + gio;
+  }
+
+  // Lỗi `permission-denied` = thầy chưa dán luật. Nói thẳng ra chứ đừng để
+  // khung chat trống trơn rồi ai cũng tưởng "lớp chưa ai nhắn gì".
+  function chuLoi(e) {
+    var ma = (e && (e.code || e.message)) || '';
+    if (String(ma).indexOf('permission-denied') >= 0) {
+      // ⭐ v1.52.0 (gói bảo mật C): xoá tin · tin ký THẦY · lưu trữ nay đòi PHIÊN THẦY
+      // (js/thay.js). Học sinh nhắn/thả cảm xúc vẫn không cần đăng nhập.
+      return 'Kho từ chối: việc này cần phiên của thầy (nút 🔐 ở dashboard hoặc mở từ app myLesson) — hoặc luật Firestore chưa dán.';
+    }
+    return 'Chưa nối được kho tin nhắn. Thử tải lại trang nhé.';
+  }
+
+  window.AWChat = {
+    nghe: nghe, thoi: thoi, gui: gui, suaCx: suaCx, xoa: xoa,
+    taiThem: taiThem, TOI_DA_TIN_THEM: TOI_DA_TIN_THEM,
+    luuKho: luuKho, dsKho: dsKho, tinMoiNhat: tinMoiNhat,
+    chuGio: chuGio, chuLoi: chuLoi, TOI_DA_CHU: TOI_DA_CHU,
+    dauMay: dauMay,                    /* ⭐ v1.80.0 — xem khối "DẤU MÁY" đầu file */
+    // ⭐ v1.38.0 — mở CỬA FIREBASE dùng chung cho khối khác (js/vi-qua.js đọc
+    // kho quà `quaTang/catalog`). ⛔ Nơi khác ĐỪNG tự `initializeApp` /
+    // `getFirestore()` lần nữa: cùng một app gọi hai lần là dính
+    // `duplicate-app` hoặc `failed-precondition` ⇒ chat chết câm (v1.17.0).
+    kho: db
+  };
+})();

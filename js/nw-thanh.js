@@ -1,0 +1,104 @@
+/* ============================================================
+   nw-thanh.js — THANH myNetwork trên trang LỚP + trang KHÓA (mẫu v29, 24/09/2026)
+
+   Thầy chốt 24/09: andrewclasses.com đổi sang giao diện myNetwork nhưng CHỈ mở
+   TRANG BÀI TẬP. Avatar (trang cá nhân) + 5 icon còn lại bấm vào = hộp nhỏ giữa
+   màn "Tính năng sẽ sớm được ra mắt". ☰ mở sidebar cũ của myLesson (ví sao +
+   menu vi-qua.js), nay trượt từ PHẢI như myNetwork.
+
+   Nạp SAU script chính của trang: cần `veMenuChinh` (biến toàn cục của
+   lop.html/khoa.html) để mở lại menu chính mỗi lần mở sidebar.
+   ============================================================ */
+(function () {
+  'use strict';
+  var $ = function (s, g) { return (g || document).querySelector(s); };
+  var P = function (d) { return '<svg viewBox="0 0 24 24">' + d + '</svg>'; };
+  // Icon chép y myNetwork js/loi.js (IC.*)
+  var IC = {
+    baiTap: P('<path d="M8.5 21H5.2A1.7 1.7 0 0 1 3.5 19.3V4.2A1.7 1.7 0 0 1 5.2 2.5h8.3l5 5v3.3"/><path d="M13.5 2.5v4.2a1 1 0 0 0 1 1h4"/><path d="M6.8 9.6h4M6.8 12.6h7M6.8 15.6h5.2"/><path d="M11.3 21.5l.9-3.5 6.5-6.5a1.85 1.85 0 0 1 2.6 2.6l-6.5 6.5z"/><path d="M17.4 12.8l2.6 2.6"/>'),
+    khamPha: P('<circle cx="12" cy="12" r="9.5"/><path d="m15.8 8.2-2.2 5.4-5.4 2.2 2.2-5.4z"/>'),
+    tinNhan: P('<path d="M12.5 2.5a8.5 8.5 0 1 1-4.6 15.6L3 21.5l1.6-5.2A8.5 8.5 0 0 1 12.5 2.5z"/><circle cx="8.8" cy="11" r="1.2" fill="currentColor" stroke="none"/><circle cx="12.5" cy="11" r="1.2" fill="currentColor" stroke="none"/><circle cx="16.2" cy="11" r="1.2" fill="currentColor" stroke="none"/>'),
+    bangTin: P('<path d="M3 10.8 12 3.5l9 7.3"/><path d="M5.5 9.3V20.5h13V9.3"/><path d="M10 20.5v-5.5h4v5.5"/>'),
+    chuong: P('<path d="M6.2 8.5a5.8 5.8 0 0 1 11.6 0c0 6.5 2.7 8.3 2.7 8.3H3.5s2.7-1.8 2.7-8.3"/><path d="M10.4 20.5a1.8 1.8 0 0 0 3.2 0"/>'),
+    timKiem: P('<circle cx="11" cy="11" r="7"/><path d="m20.5 20.5-4.6-4.6"/>'),
+    caNhan: P('<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>'),
+    menu3: P('<line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/>')
+  };
+  var TABS = [
+    { ma: 'baiTap', chu: 'TRANG BÀI TẬP' },
+    { ma: 'khamPha', chu: 'KHÁM PHÁ' },
+    { ma: 'tinNhan', chu: 'TIN NHẮN' },
+    { ma: 'bangTin', chu: 'BẢNG TIN' },
+    { ma: 'chuong', chu: 'THÔNG BÁO' },
+    { ma: 'timKiem', chu: 'TÌM KIẾM' }
+  ];
+  // Nút Đăng ký ở màn đăng nhập (thầy 24/09: sau này mở màn đăng ký cho học sinh mới)
+  IC.dangKy = P('<circle cx="9" cy="8.2" r="3.4"/><path d="M3.4 20c0-3.6 2.9-6 5.6-6s5.6 2.4 5.6 6"/><path d="M18.6 7.6v5M16.1 10.1h5"/>');
+  var TEN = { caNhan: 'TRANG CÁ NHÂN', dangKy: 'ĐĂNG KÝ' };
+  TABS.forEach(function (t) { TEN[t.ma] = t.chu; });
+
+  // ---------- hộp "sắp ra mắt" (dùng ở trang lớp/khóa + màn đăng nhập) ----------
+  var LAP = '<path d="M5 0l1.1 3.9L10 5l-3.9 1.1L5 10 3.9 6.1 0 5l3.9-1.1z"/>';
+  var sap = document.createElement('div');
+  sap.className = 'nwb-sap';
+  sap.setAttribute('role', 'dialog');
+  sap.innerHTML = '<div class="nwb-sap-hop"><div class="nwb-sap-ic"></div><p class="nwb-sap-ten"></p>' +
+    '<p class="nwb-sap-chu">Tính năng sẽ sớm được ra mắt</p><button type="button" class="nwb-sap-nut">ĐÃ HIỂU</button></div>';
+  document.body.appendChild(sap);
+  function moSap(ma) {
+    $('.nwb-sap-ic', sap).innerHTML = IC[ma] + '<svg class="lap a" viewBox="0 0 10 10">' + LAP + '</svg><svg class="lap b" viewBox="0 0 10 10">' + LAP + '</svg>';
+    $('.nwb-sap-ten', sap).textContent = TEN[ma] || '';
+    sap.classList.add('mo');
+    $('.nwb-sap-nut', sap).focus({ preventScroll: true });
+  }
+  function dongSap() { sap.classList.remove('mo'); }
+  sap.onclick = function (e) { if (e.target === sap) dongSap(); };
+  $('.nwb-sap-nut', sap).onclick = dongSap;
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') dongSap(); });
+  var dk = $('#btnDangKy');
+  if (dk) dk.onclick = function () { moSap('dangKy'); };   // ⬜ sau này: form đăng ký → lưu kho + thầy xem ở dashboard
+
+  // ---------- hộp LIÊN HỆ (thầy chốt 24/09: chỉ Zalo + điện thoại) ----------
+  var SDT = '0359.769.765', SDT_SO = SDT.replace(/\D/g, '');
+  var lh = document.createElement('div');
+  lh.className = 'nwb-sap nwb-lh';
+  lh.setAttribute('role', 'dialog');
+  lh.innerHTML = '<div class="nwb-sap-hop"><img class="nwb-lh-av" src="assets/avatar-tron.jpg" alt="">' +
+    '<p class="nwb-sap-ten">LIÊN HỆ</p><p class="nwb-lh-ten">Thầy Andrew</p><p class="nwb-lh-sdt">' + SDT + '</p>' +
+    '<div class="nwb-lh-nut"><a class="nwb-sap-nut" href="https://zalo.me/' + SDT_SO + '" target="_blank" rel="noopener">NHẮN ZALO</a>' +
+    '<a class="nwb-sap-nut phu" href="tel:' + SDT_SO + '">GỌI ĐIỆN</a></div></div>';
+  document.body.appendChild(lh);
+  lh.onclick = function (e) { if (e.target === lh) lh.classList.remove('mo'); };
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') lh.classList.remove('mo'); });
+  var nutLh = $('#btnLienHe');
+  if (nutLh) nutLh.onclick = function () { lh.classList.add('mo'); };
+
+  var dau = $('.top.nwb');
+  if (!dau) return;              // màn đăng nhập: không có thanh
+  document.body.classList.add('co-nwb');
+
+  $('.nwb-tabs', dau).innerHTML = TABS.map(function (t) {
+    var bt = t.ma === 'baiTap';
+    return '<a class="nwb-tab' + (bt ? ' chon' : '') + '" data-ma="' + t.ma + '" data-nh="' + t.chu + '" href="' +
+      (bt ? location.pathname.split('/').pop() : '#') + '" title="' + t.chu + '" aria-label="' + t.chu + '">' + IC[t.ma] + '</a>';
+  }).join('');
+  $('#nwbMenu').innerHTML = IC.menu3;
+
+  dau.addEventListener('click', function (e) {
+    var t = e.target.closest('.nwb-tab');
+    if (!t) return;
+    e.preventDefault();
+    if (t.getAttribute('data-ma') === 'baiTap') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    moSap(t.getAttribute('data-ma'));
+  });
+
+  // Avatar = TRANG CÁ NHÂN (chưa mở). Gán đè onclick cũ của trang (mở sidebar).
+  var av = $('#nutMenu');
+  if (av) { av.title = 'Trang cá nhân'; av.onclick = function () { moSap('caNhan'); }; }
+
+  // ☰ = sidebar cũ (ví sao + menu), mở lại luôn thấy MENU CHÍNH như nút avatar cũ.
+  $('#nwbMenu').onclick = function () {
+    if (typeof window.veMenuChinh === 'function') window.veMenuChinh();
+    document.body.classList.add('mo-menu');
+  };
+})();

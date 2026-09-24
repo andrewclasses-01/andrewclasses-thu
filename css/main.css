@@ -1,0 +1,535 @@
+/* ============================================================
+   Lesson in Andrew Classes — TRANG CỦA HỌC SINH
+   Design thầy đã duyệt 08/07/2026 (dự án WebDesign):
+   LUÔN light mode · Montserrat nhúng · teal #0E7C6E + amber · thẻ bo 18px.
+   (App máy tính của thầy thì nền tối — hai hồ sơ khác nhau, đừng trộn.)
+   ============================================================ */
+:root{
+  --ground:#F7FAF9; --surface:#FFFFFF; --ink:#16232A; --muted:#5F7370;
+  --accent:#0E7C6E; --accent-ink:#FFFFFF; --accent-soft:#E3F1EE;
+  --amber:#F2A93B; --amber-soft:#FCF3E2;
+  --line:#E0EAE7;
+  --shadow:0 1px 3px rgba(22,35,42,.07), 0 8px 24px rgba(22,35,42,.06);
+  --mono:"Cascadia Code","Consolas",ui-monospace,monospace;
+  --sans:'Montserrat',"Segoe UI",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--ground); color:var(--ink); font:500 15px/1.6 var(--sans)}
+.wrap{max-width:680px; margin:0 auto; padding:0 20px}
+.screen[hidden]{display:none}
+
+/* #scLogin KHÔNG dùng display:none (thuộc tính hidden) để ẩn/hiện — dùng
+   visibility:hidden (qua .man-hien) vì display:none làm mọi CSS animation
+   bên trong RESET (đo thật: sparkle của .brand tụt currentTime về gần 0).
+   visibility:hidden thì animation vẫn chạy ngầm, không sơn ra màn hình. */
+#scLogin{position:fixed; inset:0; z-index:1; overflow-y:auto;
+  visibility:hidden; pointer-events:none}
+#scLogin.man-hien{visibility:visible; pointer-events:auto}
+
+/* ---------- SIGN IN ---------- */
+/* v1.8.0: nền loang RỜI HẲN khỏi .login-wrap, sống ở #loginBg — MỘT phần tử
+   DUY NHẤT dùng chung cho cả màn đăng nhập lẫn màn thông tin (app.js chỉ ẩn
+   hiện nó, không bao giờ dựng lại) — nên đổi qua lại 2 màn đó KHÔNG làm nền
+   "giật"/chạy lại animation loang từ đầu như hồi còn nằm trong .login-wrap.
+   100svh (không phải 100vh) để trên iPhone thanh địa chỉ không cắt mất đáy. */
+.login-wrap{min-height:100vh; min-height:100svh; position:relative; z-index:1;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  padding:36px 20px; gap:6px}
+
+/* Nền TRẮNG NGẢ KEM, phủ kín màn hình, đứng sau mọi thứ (z-index:0).
+   Mở trang ra là trắng, rồi các mảng màu ấm LOANG DẦN ra xung quanh — hai lớp
+   quầng nở so le nhau (lớp ấm trước, lớp mát sau) nên mép loang không bao giờ
+   thành một đường tròn rõ. `fixed` để cuộn trang không kéo lệch nền. */
+.login-bg{position:fixed; inset:0; z-index:0; pointer-events:none;
+  background:#FFFDFA; overflow:hidden}
+.login-bg[hidden]{display:none}
+
+/* ⛔⛔ HAI LỚP QUẦNG PHẢI TO HƠN HẲN MÀN HÌNH — 260vmax, KHÔNG PHẢI inset:0.
+   Đây là GỐC RỄ THẬT của lỗi "viền nền gradient" thầy bắt 2 lần: trước đây
+   phần tử chỉ to bằng đúng khung nhìn (inset:0), nên khi `rotate` chạy thì
+   CẠNH của chính hình chữ nhật đó quét chéo qua màn hình ⇒ hiện một ĐƯỜNG
+   CHÉO sắc lẹm. Không phải gradient thiếu fade — vá thêm mốc màu bao nhiêu
+   cũng vô ích (đã thử ở v1.8.1, vẫn lỗi y nguyên).
+   Bán kính cần ≥ nửa đường chéo khung nhìn (~115vmax ở màn 16:9) nên lấy
+   260vmax cho dư; các quầng màu chỉ nằm gọn giữa (rộng nhất 41vmax) nên
+   cách mép phần tử ~89vmax — xoay kiểu gì cũng không thể lộ mép.
+   Dùng property `scale`/`rotate` RIÊNG (không gộp vào `transform`) vì có 2
+   hoạt ảnh cùng cần biến hình độc lập (thở to-nhỏ + xoay cực chậm) —
+   `transform` là MỘT thuộc tính nên 2 @keyframes cùng ghi vào đó sẽ đè nhau;
+   tách property thì trình duyệt tự cộng dồn (CSS Transforms Level 2). */
+.login-bg::before,.login-bg::after{content:""; position:absolute;
+  width:260vmax; height:260vmax; left:50%; top:47%; margin:-130vmax 0 0 -130vmax;
+  opacity:0; scale:.28; rotate:0deg;
+  will-change:opacity,filter,scale,rotate}
+
+/* Lớp ấm: đào · vàng nắng · hồng phấn. Đi trước, nở nhanh hơn một chút.
+   v1.8.0: vùng loang RỘNG HƠN (mỗi quầng +~20%) + thêm `mauDoi` đổi tông màu
+   liên tục qua filter hue-rotate — chuyển RẤT CHẬM nên mắt không thấy giật
+   + `xoayCham`/`xoayNguoc` (lớp .xuoi/.nguoc app.js gắn NGẪU NHIÊN mỗi lần mở
+   trang) xoay cả khối RẤT chậm, một vòng mất nhiều phút — nhìn cực kỹ mới ra. */
+/* ⛔ v1.8.1: MỖI quầng nay có 4 mốc màu (không phải 2) — hạ dần .62→.30→.08→0
+   thay vì nhảy thẳng từ đặc xuống trong suốt ở một mốc DUY NHẤT. Với gradient
+   2 mốc, phần "biến mất" dồn vào một dải hẹp cuối nên mắt vẫn thấy một VIỀN
+   RÕ (nhất là sau khi ghép animation xoay + saturate) — bài học thật, thầy
+   chỉ ra "viền nền bị thiếu fade nhìn rất xấu". 4 mốc + kéo dài tới 100% làm
+   quầng tan dần vào nền kem chứ không cắt cụt. */
+/* ⚠️ Toạ độ quầng nay tính THEO TÂM PHẦN TỬ bằng calc() — phần tử 260vmax
+   chứ không còn bằng khung nhìn, nên các % kiểu "33% 38%" của bản cũ sẽ văng
+   ra rất xa ngoài màn hình. calc(50% ± Nvmax) giữ chúng quanh tâm như cũ. */
+.login-bg::before{
+  background:
+    radial-gradient(41vmax 36vmax at 50% 50%, rgba(255,193,133,.62) 0%,
+      rgba(255,193,133,.30) 42%, rgba(255,193,133,.08) 74%, transparent 100%),
+    radial-gradient(34vmax 31vmax at calc(50% - 15vmax) calc(50% - 8vmax), rgba(255,154,122,.46) 0%,
+      rgba(255,154,122,.22) 42%, rgba(255,154,122,.06) 74%, transparent 100%),
+    radial-gradient(29vmax 26vmax at calc(50% + 12vmax) calc(50% - 12vmax), rgba(255,178,196,.40) 0%,
+      rgba(255,178,196,.19) 42%, rgba(255,178,196,.05) 74%, transparent 100%);
+  animation:loang 2.5s cubic-bezier(.22,.9,.3,1) .18s forwards,
+            tho 34s ease-in-out 3.2s infinite,
+            mauDoi 52s linear 3s infinite}
+
+/* Lớp mát: mint teal của bộ nhận diện + một vệt vàng chanh rất nhạt.
+   Vào sau 0,42s để hai mép loang lệch nhau, nhìn tự nhiên như mực loang.
+   `mauDoi` chạy NGƯỢC CHIỀU + chu kỳ khác lớp trước, hai lớp không bao giờ
+   cùng tông cùng lúc — nhìn như màu đang tự trôi chứ không nháy đồng bộ. */
+.login-bg::after{
+  background:
+    radial-gradient(38vmax 35vmax at calc(50% + 11vmax) calc(50% + 12vmax), rgba(64,197,178,.46) 0%,
+      rgba(64,197,178,.22) 42%, rgba(64,197,178,.06) 74%, transparent 100%),
+    radial-gradient(31vmax 29vmax at calc(50% - 11vmax) calc(50% + 17vmax), rgba(255,214,150,.44) 0%,
+      rgba(255,214,150,.21) 42%, rgba(255,214,150,.06) 74%, transparent 100%);
+  animation:loang 3s cubic-bezier(.22,.9,.3,1) .42s forwards,
+            tho 41s ease-in-out 3.8s infinite reverse,
+            mauDoi 60s linear 3.4s infinite reverse}
+
+/* Chỉ MỘT trong hai lớp xoay (lớp còn lại đứng yên) — đủ để cảm nhận nền
+   "sống" mà không rối. app.js bốc thăm NGẪU NHIÊN mỗi lần mở trang, gắn class
+   .xuoi (theo chiều kim đồng hồ) hoặc .nguoc (ngược chiều) vào #loginBg.
+   Viết lại ĐỦ cả 4 hoạt ảnh (không tách riêng animation-name/-duration/…)
+   để khỏi lệch thứ tự danh sách — dễ đọc, chắc chắn hơn. */
+.login-bg.xuoi::before{
+  animation:loang 2.5s cubic-bezier(.22,.9,.3,1) .18s forwards,
+            tho 34s ease-in-out 3.2s infinite,
+            mauDoi 52s linear 3s infinite,
+            xoayCham 320s linear infinite}
+.login-bg.nguoc::before{
+  animation:loang 2.5s cubic-bezier(.22,.9,.3,1) .18s forwards,
+            tho 34s ease-in-out 3.2s infinite,
+            mauDoi 52s linear 3s infinite,
+            xoayNguoc 320s linear infinite}
+
+@keyframes loang{
+  from{opacity:0; scale:.28}
+  to  {opacity:1; scale:1}
+}
+/* Sau khi loang xong thì thở rất khẽ, để nền không đứng chết một chỗ.
+   Bắt đầu đúng ở scale(1) nên nối liền mạch với lúc loang, không giật. */
+@keyframes tho{
+  0%,100%{scale:1}
+  50%    {scale:1.07}
+}
+/* Xoay tông màu liên tục, RẤT CHẬM (52s/60s một vòng) — filter hue-rotate
+   không đụng tới các lớp gradient gốc nên vẫn giữ đúng bộ màu đã duyệt.
+   saturate hạ từ 1.15 xuống 1.05 (v1.8.1) — bão hoà cao làm viền quầng RÕ
+   hơn, cộng với gradient fade gấp mới càng lộ viền. */
+@keyframes mauDoi{
+  0%  {filter:hue-rotate(0deg) saturate(1)}
+  50% {filter:hue-rotate(180deg) saturate(1.05)}
+  100%{filter:hue-rotate(360deg) saturate(1)}
+}
+/* Xoay CỰC chậm — 320 GIÂY (hơn 5 phút) một vòng, phải nhìn rất kỹ mới thấy
+   nền đang xoay. Hai chiều để app.js bốc thăm ngẫu nhiên mỗi lần mở trang. */
+@keyframes xoayCham { from{rotate:0deg} to{rotate:360deg} }
+@keyframes xoayNguoc{ from{rotate:0deg} to{rotate:-360deg} }
+
+/* ---------- NGĂN: hai ngăn thay nhau đóng/mở trong CÙNG một thẻ ----------
+   ⛔ v1.8.2: `max-height` KHÔNG còn là số cứng (420px) — app.js đặt bằng ĐÚNG
+   `scrollHeight` của ngăn. Lý do: với số cứng lớn hơn nội dung thật, đoạn
+   max-height chạy từ 420px xuống ~190px KHÔNG làm thẻ đổi chiều cao chút nào
+   (nội dung chỉ cao 190px) ⇒ nửa đầu hoạt ảnh "đứng hình" rồi mới co ⇒ brand
+   (bị thẻ đẩy đi) trông như trễ một nhịp. Đặt đúng chiều cao thật thì thẻ đổi
+   cỡ tuyến tính suốt cả 580ms, brand đi theo khít từng khung hình.
+   ⛔ Đừng thêm `transform`/`scale` vào đây: nó làm phần thân trông như dịch
+   chuyển ĐỘC LẬP với thẻ, đúng thứ cảm giác "không ăn khớp" thầy phàn nàn. */
+.ngan{overflow:hidden;
+  transition:max-height .58s cubic-bezier(.22,.9,.3,1), opacity .34s ease;
+  opacity:1}
+.ngan.ngan-dong{max-height:0 !important; opacity:0; pointer-events:none}
+
+/* Máy nào đặt "giảm chuyển động": bày sẵn trạng thái đã loang xong, không chạy gì. */
+@media (prefers-reduced-motion: reduce){
+  .login-bg::before,.login-bg::after{animation:none; opacity:1; scale:1; rotate:0deg; filter:none}
+  .spark{animation:none !important; opacity:0 !important}
+  .ngan{transition:none !important}
+  .brand{transition:none !important}
+}
+
+/* ---------- BRAND: icon + "Andrew Classes" = MỘT nút bấm (v1.8.0) ----------
+   width:fit-content để khối co theo đúng icon+chữ rồi margin:auto tự căn giữa
+   trong khung — sparkle bên dưới định vị theo % của CHÍNH khối này nên luôn
+   bám sát viền icon+chữ dù màn rộng hẹp khác nhau.
+   ⛔ Thầy chốt: bấm vào KHÔNG hiện nền/khung nút bên dưới — chỉ scale nhẹ. */
+.brand{display:flex; align-items:center; gap:12px; width:fit-content; max-width:100%;
+  margin:0 auto 22px; position:relative; cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+  transition:transform .18s cubic-bezier(.22,.9,.3,1), margin-bottom .3s ease}
+.brand:active{transform:scale(.97)}
+/* .gon = "gọn": app.js gắn khi khối brand đang đứng trong trang THÔNG TIN —
+   nhích sát lên một chút cho gọn (danh sách 3 dòng bên dưới dài hơn ô nhập
+   mã) — cũng chính là quãng đường mà hiệu ứng FLIP bên app.js dùng để vẽ
+   cảnh "chữ Andrew Classes chuyển dần lên" lúc đổi màn. */
+.brand.gon{margin-bottom:12px}
+
+.brand-ava{position:relative; flex:0 0 auto; width:52px; height:52px; border-radius:50%;
+  overflow:hidden; background:var(--accent-soft);
+  box-shadow:0 0 0 3px #fff, 0 3px 12px rgba(88,60,30,.20)}
+.brand-ava img{width:100%; height:100%; object-fit:cover; display:block}
+
+.brand-txt{margin:0; white-space:nowrap;
+  font:800 clamp(22px,6.2vw,29px)/1.15 var(--sans); color:var(--accent); letter-spacing:-.02em}
+
+/* ⭐ v1.111.0 (15/09/2026, thầy chốt phương án A) — ĐẦU THẺ Ở MÀN CHỌN LỚP LÀ EM:
+   avatar em + TÊN EM thay avatar thầy + "Andrew Classes" (dangnhap.js `doiBrandSangEm`).
+   Cùng khối .brand, cùng cỡ ⇒ thẻ không đổi chiều cao; sparkle giữ nguyên.
+   `.doi` = đang mờ đi để đổi ruột (ảnh + chữ), tránh ảnh "nhảy" giữa chừng. */
+.brand-ava,.brand-txt{transition:opacity .22s ease}
+.brand.doi .brand-ava,.brand.doi .brand-txt{opacity:0}
+.brand-ava .av-chu{position:absolute; inset:0; display:flex; align-items:center;
+  justify-content:center; font:800 19px/1 var(--sans); color:#fff; letter-spacing:.02em}
+.brand-ava .av-anh{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
+.brand.em-chon .brand-txt{color:var(--ink); font-size:clamp(22px,6vw,27px); letter-spacing:-.01em;
+  overflow:hidden; text-overflow:ellipsis; max-width:100%}
+
+/* ---------- SPARKLE: bay ra liên tục TỪ TRONG icon+chữ, tông VÀNG ----------
+   Hình ngôi sao 4 cánh vẽ bằng clip-path (không dùng ký tự ✦ — glyph tuỳ font
+   trông thô), có glow mềm bằng drop-shadow. Mỗi hạt NEO Ở ĐIỂM NẰM TRÊN chính
+   icon hoặc chữ (không còn ở mép ngoài như bản trước) rồi bay tỏa xa dần theo
+   hướng riêng (--dx/--dy) trong lúc phóng to rồi mờ đi — như đang phát ra từ
+   trong hình/chữ chứ không phải lấp lánh quanh viền. Lặp vô hạn, lệch pha +
+   lệch nhịp để không nháy đồng loạt.
+   ⛔ Khối .spark SỐNG CHUNG với #btnBrand — app.js CHỈ dời cả khối .brand
+   (đủ nguyên icon+chữ+sparkle) sang thẻ đang hiện, không bao giờ tạo lại các
+   .spark này, nên hoạt ảnh KHÔNG BỊ RESET khi đổi đăng nhập ↔ thông tin. */
+.spark{position:absolute; pointer-events:none; width:9px; height:9px;
+  background:linear-gradient(145deg,#FFE9A8,#FFC22E);
+  clip-path:polygon(50% 0%,63% 37%,100% 50%,63% 63%,50% 100%,37% 63%,0% 50%,37% 37%);
+  filter:drop-shadow(0 0 4px rgba(255,190,50,.85));
+  opacity:0; transform:translate(-50%,-50%) translate(0,0) scale(.15) rotate(0deg)}
+.brand .spark{animation:lapLanh ease-in-out infinite}
+/* s1-s2-s9 neo TRÊN ẢNH đại diện (17% đầu của khối) · s3-s8 neo TRÊN chữ. */
+.brand .s1{top:30%; left:9%;  width:7px;  height:7px;  --dx:-26px; --dy:-22px; animation-duration:2.8s; animation-delay:0s}
+.brand .s2{top:76%; left:12%; width:10px; height:10px; --dx:-22px; --dy:24px;  animation-duration:3.3s; animation-delay:.35s}
+.brand .s9{top:14%; left:16%; width:8px;  height:8px;  --dx:-8px;  --dy:-28px; animation-duration:3s;   animation-delay:2.8s}
+.brand .s3{top:28%; left:30%; width:6px;  height:6px;  --dx:-10px; --dy:-28px; animation-duration:2.6s; animation-delay:.7s}
+.brand .s4{top:72%; left:42%; width:12px; height:12px; --dx:2px;   --dy:28px;  animation-duration:3.5s; animation-delay:1.05s}
+.brand .s5{top:24%; left:56%; width:8px;  height:8px;  --dx:11px;  --dy:-28px; animation-duration:2.9s; animation-delay:1.4s}
+.brand .s6{top:78%; left:66%; width:9px;  height:9px;  --dx:15px;  --dy:26px;  animation-duration:3.1s; animation-delay:1.75s}
+.brand .s7{top:35%; left:84%; width:8px;  height:8px;  --dx:28px;  --dy:-18px; animation-duration:2.7s; animation-delay:2.1s}
+.brand .s8{top:70%; left:93%; width:6px;  height:6px;  --dx:30px;  --dy:20px;  animation-duration:3.4s; animation-delay:2.45s}
+@keyframes lapLanh{
+  0%,100%{opacity:0; transform:translate(-50%,-50%) translate(0,0) scale(.15) rotate(0deg)}
+  40%    {opacity:1; transform:translate(-50%,-50%) translate(calc(var(--dx)*.5),calc(var(--dy)*.5)) scale(1) rotate(40deg)}
+  80%    {opacity:0; transform:translate(-50%,-50%) translate(var(--dx),var(--dy)) scale(.35) rotate(75deg)}
+}
+
+.card{background:var(--surface); border:1px solid var(--line); border-radius:18px;
+  box-shadow:var(--shadow); padding:24px}
+/* Khung trắng đứng giữa vùng màu loang: viền gần như vô hình, bóng mềm và toả
+   rộng để khung "nổi" lên mà không cắt một đường viền cứng vào nền. */
+.login-card{width:100%; max-width:380px; position:relative; padding:30px 24px 26px;
+  border-color:rgba(22,35,42,.05);
+  box-shadow:0 24px 60px rgba(88,60,30,.13), 0 4px 14px rgba(88,60,30,.07)}
+.login-card input{margin-bottom:14px}
+.lbl{display:block; font:600 10.5px/1 var(--sans); letter-spacing:.14em; text-transform:uppercase;
+  color:var(--muted); margin:0 0 8px}
+.lbl+input{margin-bottom:18px}
+input[type=text],input[type=password]{width:100%; padding:14px 16px; border-radius:12px;
+  border:1.5px solid var(--line); background:#fff; color:var(--ink); font:600 16px/1.2 var(--sans);
+  outline:none; transition:border-color .15s}
+/* 16px là cỡ tối thiểu để iPhone không tự phóng to trang khi bấm vào ô nhập. */
+input[type=text]:focus,input[type=password]:focus{border-color:var(--accent)}
+input::placeholder{color:#9fb0ac; font-weight:500}
+
+/* Ô "My ID" — con mắt ẩn/hiện đè lên mép phải ô nhập (v1.60). Chỉ ĐỔI
+   type=password↔text qua lại, KHÔNG tự viết code che ký tự (xem index.html). */
+.id-wrap{position:relative; margin-bottom:14px}
+.id-wrap input{margin-bottom:0; padding-right:46px}
+.id-eye{position:absolute; right:5px; top:50%; transform:translateY(-50%); width:36px; height:36px;
+  border:0; background:transparent; border-radius:9px; display:flex; align-items:center;
+  justify-content:center; color:var(--muted); cursor:pointer; padding:0; transition:background-color .15s}
+.id-eye:hover{background:var(--accent-soft); color:var(--accent)}
+.id-eye svg{width:20px; height:20px}
+/* Thẻ <svg> gốc KHÔNG tự ẩn theo thuộc tính hidden (quirk trình duyệt cũ) —
+   phải tự khai rõ như mọi chỗ khác trong file này (.tiny[hidden] v.v). */
+.id-eye svg[hidden]{display:none}
+
+/* ⭐⭐ v1.78.0 (08/09/2026) — MÀN CHỌN LỚP: em có mã ở HAI nơi (lớp thường + khóa
+   học, hoặc lớp chính + lớp học bổ sung) thì không vào thẳng đâu cả, mà chọn.
+   Hoạt ảnh thầy chốt: ô "My ID" TÁCH LÀM ĐÔI bay sang hai bên rồi mờ, cùng lúc
+   các nút lớp TRƯỢT RA từ trên và từ dưới.
+   ⛔ Ô nhập thật không tách đôi được (một thẻ <input> là một khối) — nên hai nửa là
+   hai tấm GIẢ phủ đúng lên ô (cùng nền, cùng viền, cùng bo góc), cắt bằng clip-path;
+   ô thật + con mắt chỉ việc mờ đi dưới chúng. Ô đang là chấm tròn mật khẩu nên
+   không ai thấy chữ biến mất. */
+.id-nua{position:absolute; inset:0; border-radius:12px; background:#fff;
+  border:1.5px solid var(--line); pointer-events:none; opacity:0;
+  transition:transform .62s cubic-bezier(.22,.9,.3,1), opacity .5s ease}
+.id-wrap.tach input,.id-wrap.tach .id-eye{opacity:0; transition:opacity .2s ease}
+.id-wrap.tach .id-nua{opacity:1}
+.id-nua.trai{clip-path:inset(0 50% 0 0)}
+.id-nua.phai{clip-path:inset(0 0 0 50%)}
+.id-wrap.tach.bay .id-nua.trai{transform:translateX(-42px); opacity:0}
+.id-wrap.tach.bay .id-nua.phai{transform:translateX(42px); opacity:0}
+/* Nút SIGN IN mờ tại chỗ rồi mới bị gỡ khỏi luồng (tránh giật chiều cao thẻ). */
+#btnLogin.mo-di{opacity:0; transform:scale(.98); transition:opacity .28s ease, transform .28s ease}
+
+.chon-ds{display:flex; flex-direction:column; gap:12px}
+.chon-ds[hidden]{display:none}
+.chon-nut{position:relative; display:flex; align-items:center; gap:14px; width:100%;
+  padding:16px 18px; border-radius:16px; border:1.5px solid var(--line);
+  background:var(--surface); cursor:pointer; text-align:left;
+  opacity:0; transform:translateY(var(--tu,0)) scale(.98);
+  transition:opacity .46s ease, transform .62s cubic-bezier(.22,.9,.3,1),
+             border-color .18s, box-shadow .22s;
+  box-shadow:0 1px 2px rgba(22,35,42,.05)}
+.chon-nut.vao{opacity:1; transform:none}
+.chon-nut:hover{border-color:var(--accent); box-shadow:0 6px 20px rgba(14,124,110,.16)}
+.chon-nut:active{transform:scale(.975)}
+.cn-ic{flex:none; width:44px; height:44px; border-radius:13px; background:var(--accent-soft);
+  color:var(--accent); display:flex; align-items:center; justify-content:center}
+.cn-ic svg{width:22px; height:22px; fill:none; stroke:currentColor; stroke-width:1.9;
+  stroke-linecap:round; stroke-linejoin:round}
+.chon-nut.khoa .cn-ic{background:#F1ECFD; color:#5B3FC4}
+.cn-ten{flex:1; min-width:0; font:800 16px/1.25 var(--sans); letter-spacing:.01em;
+  color:var(--ink); overflow:hidden; text-overflow:ellipsis}
+.cn-go{flex:none; color:#B6C6C2; font-size:20px; font-weight:700; line-height:1}
+/* "CÓ BÀI MỚI" — chấm đỏ ở GÓC nút (thầy chốt 08/09), chỉ hiện khi nơi đó còn bài
+   em chưa làm xong. Nhô lên khỏi mép nút nên nút KHÔNG được có overflow:hidden. */
+.cn-moi{position:absolute; top:-8px; right:14px; padding:4px 9px; border-radius:999px;
+  background:#D93B40; color:#fff; font:800 9.5px/1 var(--sans); letter-spacing:.07em;
+  box-shadow:0 2px 8px rgba(217,59,64,.42); animation:cn-moi-nhay 2.6s ease-in-out infinite}
+@keyframes cn-moi-nhay{
+  0%,100%{box-shadow:0 2px 8px rgba(217,59,64,.34)}
+  50%    {box-shadow:0 2px 14px rgba(217,59,64,.72)}
+}
+@media (prefers-reduced-motion: reduce){
+  .cn-moi{animation:none}
+  .chon-nut,.id-nua{transition-duration:.01ms}
+}
+
+.btn{display:inline-flex; align-items:center; justify-content:center; padding:14px 24px;
+  border-radius:12px; border:0; font:600 13.5px/1 var(--sans); letter-spacing:.06em;
+  text-decoration:none; cursor:pointer; transition:filter .12s, transform .12s}
+.btn.primary{background:var(--accent); color:var(--accent-ink)}
+.btn.primary:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent; color:var(--accent); border:1.5px solid var(--accent)}
+.btn.ghost:hover{background:var(--accent-soft)}
+.btn.wide{width:100%}
+.btn:active{transform:scale(.97)}
+.tiny{color:var(--muted); font-size:12px; margin:14px 0 0; text-align:center}
+.tiny[hidden]{display:none}
+.tiny.warn{color:#8a5b0e}
+
+/* Chân trang đăng nhập: hai dòng nhỏ, căn giữa, dòng dưới nhạt hơn một bậc.
+   Chữ xám ngả nâu để hoà với nền ấm (nền nay sáng, chữ trắng sẽ mất hút). */
+.login-foot{margin-top:26px; text-align:center}
+.login-foot p{margin:0; font:500 11px/1.75 var(--sans); color:#6E6257;
+  letter-spacing:.02em}
+.login-foot p+p{color:#9A8D80}
+
+/* ---------- TRANG THÔNG TIN (v1.8.0) — bấm icon/chữ ở màn đăng nhập ra đây.
+   Cùng khung .login-card + cùng nền loang cho liền mạch, chỉ đổi phần ruột. */
+.info-list{display:flex; flex-direction:column}
+.info-row{display:flex; align-items:center; gap:14px; width:100%; padding:14px 2px;
+  background:transparent; border:0; border-top:1px solid var(--line); text-align:left;
+  cursor:pointer; font:700 12.5px/1.3 var(--sans); color:var(--ink); letter-spacing:.02em;
+  transition:background-color .15s}
+.info-list .info-row:first-child{border-top:0}
+.info-row:hover,.info-row:active{background:var(--accent-soft)}
+.ir-ic{flex:none; width:38px; height:38px; border-radius:12px; background:var(--accent-soft);
+  color:var(--accent); display:flex; align-items:center; justify-content:center}
+.ir-ic svg{width:19px; height:19px}
+.ir-txt{flex:1}
+.ir-go{flex:none; color:var(--line); font-size:20px; font-weight:700}
+
+/* ---------- HERO ---------- */
+.hero{position:relative; overflow:hidden; border-bottom:1px solid var(--line); background:var(--surface)}
+.hero::before{content:""; position:absolute; width:420px; height:420px; border-radius:50%;
+  background:radial-gradient(circle,var(--accent-soft) 0%,transparent 68%); top:-190px; right:-110px}
+.hero::after{content:""; position:absolute; width:300px; height:300px; border-radius:50%;
+  background:radial-gradient(circle,var(--amber-soft) 0%,transparent 66%); bottom:-150px; left:-80px}
+/* Lề ngang phải khai LẠI ở đây: .hero-in đứng sau .wrap trong file nên padding
+   của nó ĐÈ padding của .wrap — thiếu dòng này thì chữ dính sát mép màn hình. */
+.hero-in{position:relative; z-index:1; display:flex; align-items:center; gap:22px;
+  padding:28px 20px 26px; flex-wrap:wrap}
+.hero-txt{flex:1; min-width:230px}
+.eyebrow{font:600 11.5px/1 var(--sans); letter-spacing:.18em; text-transform:uppercase;
+  color:var(--accent); margin:0 0 10px}
+h1{font:800 clamp(20px,5vw,28px)/1.25 var(--sans); letter-spacing:-.01em; margin:0 0 12px;
+  text-wrap:balance}
+h1 .code{font-family:var(--mono); font-weight:700; color:var(--accent)}
+.chips{display:flex; gap:8px; flex-wrap:wrap}
+.chip{font:600 11.5px/1 var(--sans); letter-spacing:.08em; padding:7px 12px; border-radius:999px}
+.chip.class{background:var(--accent); color:var(--accent-ink)}
+.chip.date{background:var(--amber-soft); color:var(--ink); border:1px solid var(--amber)}
+.chip.ghost{background:var(--accent-soft); color:var(--accent)}
+.linkbtn{background:transparent; border:0; color:var(--muted); font:600 12.5px/1 var(--sans);
+  cursor:pointer; padding:8px}
+.linkbtn:hover{color:var(--accent)}
+.linkbtn.back{position:relative; z-index:1; flex-basis:100%; text-align:left; padding-left:0}
+/* "Not you?" nép góc trên phải, không chiếm một dòng riêng dưới tên em. */
+#btnLogout{position:absolute; top:10px; right:14px; z-index:2}
+/* Chừa chỗ cho nút đó, không thì nó đè lên dòng chữ nhỏ phía trên tên em. */
+#scClass .eyebrow{padding-right:84px}
+
+/* ---------- BIRTHDAY ---------- */
+.bday{display:flex; align-items:center; gap:16px; margin:22px 0 -8px; padding:18px 20px;
+  background:linear-gradient(105deg,var(--amber-soft),#FFF9EF 55%,var(--accent-soft));
+  border:1px solid var(--amber)}
+.bday[hidden]{display:none}
+.bday-emoji{font-size:34px; line-height:1; flex:none}
+.bday-title{font:800 16.5px/1.3 var(--sans); margin:0 0 4px}
+.bday-sub{font:600 13px/1.5 var(--sans); color:var(--muted); margin:0}
+
+/* Pháo giấy sinh nhật: các mảnh rơi từ mép trên, tự dọn sau vài giây.
+   Máy nào đặt "giảm chuyển động" thì không bung (xem cả nhánh chặn trong JS). */
+.confetti{position:fixed; inset:0; pointer-events:none; z-index:80; overflow:hidden}
+.confetti i{position:absolute; top:-16px; width:9px; height:14px; border-radius:2px; opacity:.9;
+  animation:confetti-roi linear forwards}
+@keyframes confetti-roi{
+  to{transform:translateY(105vh) rotate(540deg); opacity:.75}
+}
+@media (prefers-reduced-motion: reduce){ .confetti{display:none} }
+
+/* ---------- LESSON LIST ---------- */
+.lesson-list{display:flex; flex-direction:column; gap:14px; padding:22px 0 0}
+.lesson-card{display:flex; align-items:center; gap:16px; text-align:left; width:100%;
+  background:var(--surface); border:1px solid var(--line); border-radius:18px;
+  box-shadow:var(--shadow); padding:18px 20px; cursor:pointer;
+  transition:transform .12s, border-color .12s}
+.lesson-card:hover{border-color:var(--accent); transform:translateY(-1px)}
+.lesson-card:active{transform:scale(.99)}
+.lc-main{flex:1; min-width:0}
+.lc-title{font:800 15.5px/1.35 var(--sans); margin:0 0 6px; word-break:break-word}
+.lc-title .code{font-family:var(--mono); font-weight:700; color:var(--accent); font-size:14px}
+.lc-meta{display:flex; gap:8px; flex-wrap:wrap}
+.lc-tag{font:600 10.5px/1 var(--sans); letter-spacing:.1em; padding:6px 10px; border-radius:999px;
+  background:var(--accent-soft); color:var(--accent)}
+.lc-tag.due{background:var(--amber-soft); color:#8a5b0e; border:1px solid var(--amber)}
+.lc-go{flex:none; color:var(--accent); font-size:22px; font-weight:700}
+.empty-note{color:var(--muted); text-align:center; padding:60px 0}
+
+/* ---------- ONE LESSON ---------- */
+.lede{color:var(--muted); font-size:14px; margin:22px 0 0}
+main{display:flex; flex-direction:column; gap:20px; padding:22px 0 0}
+.block{background:var(--surface); border:1px solid var(--line); border-radius:18px;
+  box-shadow:var(--shadow); padding:24px}
+.block-head{display:flex; align-items:center; gap:12px; margin-bottom:6px}
+.step{flex:none; width:32px; height:32px; border-radius:10px; background:var(--accent-soft);
+  color:var(--accent); display:grid; place-items:center; font:800 15px/1 var(--sans)}
+.block-head h2{margin:0; font:800 17px/1.3 var(--sans); letter-spacing:.03em}
+/* Dòng yêu cầu ("100% requirement") — giữ đúng chỗ nó đứng trên Google Sites:
+   ngay dưới tên phần, thụt vào bằng bề rộng ô số. */
+.req{font:600 13px/1.5 var(--sans); color:var(--accent); margin:0 0 18px 44px}
+.act{font:600 12.5px/1.5 var(--mono); color:var(--muted); margin:0 0 18px 44px}
+.req + .act{margin-top:-14px}
+.block-foot.one{margin-top:20px}
+.block-foot.one .btn{flex:1; text-align:center; justify-content:center}
+
+/* Game AWord: KHÔNG tải iframe cho tới khi học sinh bấm — mở trang có 3 game mà
+   nạp sẵn cả 3 thì máy yếu ì ra, và tốn dữ liệu di động của các em. */
+.game{position:relative; border-radius:14px; overflow:hidden; border:1px solid var(--line);
+  background:var(--accent-soft); aspect-ratio:16/9}
+.game iframe{width:100%; height:100%; border:0; display:block}
+.game-cover{position:absolute; inset:0; display:grid; place-content:center; gap:14px;
+  justify-items:center; cursor:pointer; background:var(--accent-soft)}
+.game-cover:hover .play{filter:brightness(1.08); transform:scale(1.04)}
+.play{width:74px; height:74px; border-radius:50%; background:var(--accent); color:#fff;
+  display:grid; place-items:center; box-shadow:var(--shadow); transition:transform .15s, filter .15s}
+.play svg{width:30px; height:30px; margin-left:4px}
+.game-cover span{font:600 11.5px/1 var(--sans); letter-spacing:.14em; text-transform:uppercase;
+  color:var(--accent)}
+.block-foot{display:flex; gap:10px; flex-wrap:wrap; margin-top:16px}
+
+.video-frame{aspect-ratio:16/9; border-radius:12px; background:var(--accent-soft);
+  border:1px solid var(--line); margin-top:4px; overflow:hidden}
+.video-frame iframe{width:100%; height:100%; border:0; display:block}
+.note{color:var(--muted); font-size:12.5px; margin:12px 2px 0}
+
+/* ---------- TRÌNH PHÁT BÀI NGHE (v1.7.0, thay video Drive) ----------
+   Video cũ chỉ là ảnh tĩnh + tiếng, nặng ~18 MB và giấu mất thời gian. Nay là
+   thẻ <audio> vẽ lại mặt ngoài: đồng hồ · thanh kéo tua · lùi 5 giây · tốc độ. */
+.nghe{display:flex; align-items:center; gap:12px; margin-top:4px; padding:14px 16px;
+  border-radius:14px; background:var(--accent-soft); border:1px solid var(--line)}
+.ng-play{flex:none; width:52px; height:52px; border-radius:50%; background:var(--accent);
+  color:#fff; display:grid; place-items:center; border:0; cursor:pointer;
+  box-shadow:var(--shadow); transition:transform .15s, filter .15s}
+.ng-play:hover{transform:scale(1.05); filter:brightness(1.08)}
+.ng-play svg{width:22px; height:22px}
+/* Nút ▶ lệch phải 2px cho cân mắt (tam giác nặng bên trái), nút ⏸ thì không. */
+.ng-play.dung svg{margin-left:2px}
+.ng-giua{flex:1; min-width:0}
+/* Vùng bấm cao 18px nhưng vạch chỉ 6px — ngón tay các em bấm trúng dễ hơn. */
+.ng-thanh{position:relative; height:18px; display:flex; align-items:center; cursor:pointer;
+  touch-action:none}
+.ng-thanh::before{content:""; position:absolute; left:0; right:0; height:6px;
+  border-radius:99px; background:#C7DED8}
+.ng-chay{position:relative; height:6px; border-radius:99px; background:var(--accent); width:0}
+.ng-num{position:absolute; top:50%; width:14px; height:14px; margin:-7px 0 0 -7px;
+  border-radius:50%; background:var(--surface); border:2.5px solid var(--accent);
+  box-shadow:0 1px 3px rgba(22,35,42,.2); left:0}
+.ng-gio{display:flex; justify-content:space-between; margin-top:3px;
+  font:700 12px/1 var(--sans); color:var(--muted); font-variant-numeric:tabular-nums}
+.ng-nut{flex:none; display:flex; align-items:center; gap:6px}
+.ng-nut button{min-width:44px; height:34px; padding:0 10px; border-radius:10px;
+  background:var(--surface); border:1px solid var(--line); cursor:pointer;
+  font:800 12px/1 var(--sans); color:var(--accent); transition:background .15s, border-color .15s}
+.ng-nut button:hover{border-color:var(--accent)}
+.ng-nut .lui{display:flex; align-items:center; justify-content:center; gap:4px}
+.ng-nut .lui svg{width:14px; height:14px}
+.ng-nut .toc.cham{background:var(--amber-soft); border-color:var(--amber); color:#8C6420}
+/* Màn hẹp: cụm nút xuống hàng dưới, thanh kéo được cả bề ngang. */
+@media (max-width:620px){
+  .nghe{flex-wrap:wrap; gap:10px; padding:12px}
+  .ng-play{width:46px; height:46px}
+  .ng-play svg{width:19px; height:19px}
+  .ng-giua{flex:1 1 auto; order:1}
+  .ng-nut{order:2; width:100%; justify-content:flex-end}
+}
+
+/* ---------- LEADERBOARD (điểm AWord, ngay dưới game) ---------- */
+.lb{margin-top:18px; border-top:1px solid var(--line); padding-top:14px}
+.lb-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:8px}
+.lb-head h3{margin:0; font:800 11.5px/1 var(--sans); letter-spacing:.16em; color:var(--muted)}
+.lb-refresh{border:0; background:var(--accent-soft); color:var(--accent); width:30px; height:30px;
+  border-radius:9px; font-size:15px; cursor:pointer; transition:filter .12s, transform .12s}
+.lb-refresh:hover{filter:brightness(.96)}
+.lb-refresh:active{transform:scale(.92)}
+.lb-status{font:600 12.5px/1.4 var(--sans); color:var(--muted); margin:4px 0}
+.lb-status.err{color:#C4534B}
+.lb-row{display:grid; grid-template-columns:30px minmax(0,1fr) auto auto; gap:12px;
+  align-items:center; padding:9px 8px; border-radius:10px; font:600 13.5px/1.3 var(--sans)}
+.lb-row:nth-child(even){background:#FAFCFB}
+.lb-row.me{background:var(--accent-soft)}
+.lb-rank{font:800 12.5px/1 var(--sans); color:var(--muted); text-align:center;
+  font-variant-numeric:tabular-nums}
+.lb-row.top .lb-rank{color:var(--amber)}
+.lb-name{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.lb-you{font:800 9.5px/1 var(--sans); letter-spacing:.1em; color:var(--accent-ink);
+  background:var(--accent); border-radius:999px; padding:3px 7px; margin-left:6px;
+  vertical-align:1px}
+.lb-score{font-weight:800; color:var(--accent); font-variant-numeric:tabular-nums}
+.lb-time{color:var(--muted); font-size:12.5px; font-variant-numeric:tabular-nums}
+
+.foot{max-width:680px; margin:40px auto 0; padding:20px 20px 48px; border-top:1px solid var(--line);
+  display:flex; align-items:center; gap:12px; color:var(--muted); font-size:12.5px}
+.foot .ver{margin-left:auto; font:600 11px/1 var(--sans); font-style:normal; color:#9fb0ac}
+
+/* ---------- MODAL ---------- */
+.modal{position:fixed; inset:0; display:grid; place-items:center; z-index:60;
+  background:rgba(22,35,42,.45); padding:20px}
+.modal[hidden]{display:none}
+.modal-card{background:var(--surface); border-radius:18px; box-shadow:var(--shadow);
+  padding:26px; max-width:360px; width:100%; text-align:center}
+.modal-card h2{margin:0 0 10px; font:800 18px/1.3 var(--sans)}
+.modal-card p{margin:0 0 20px; color:var(--muted); font-size:14px}
