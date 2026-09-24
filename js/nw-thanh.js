@@ -104,30 +104,83 @@
 
   var dau = $('.top.nwb');
   if (!dau) return;              // màn đăng nhập: không có thanh
+  // ⭐ thầy 24/09: dashboard (data-vai="thay") theo thiết kế QUẢN LÝ myNetwork 22/09 — tab đầu = QUẢN LÝ + cột trái danh mục
+  var laThay = dau.getAttribute('data-vai') === 'thay';
   document.body.classList.add('co-nwb');
+  if (laThay) document.body.classList.add('nwb-thay');
+  IC.quanLy = P('<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="11" width="8" height="10" rx="2"/><rect x="3" y="14" width="8" height="7" rx="2"/>');
+  TEN.quanLy = 'QUẢN LÝ';
+  var tabs = TABS.map(function (t) { return laThay && t.ma === 'baiTap' ? { ma: 'quanLy', chu: 'QUẢN LÝ' } : t; });
 
-  $('.nwb-tabs', dau).innerHTML = TABS.map(function (t) {
-    var bt = t.ma === 'baiTap';
-    return '<a class="nwb-tab' + (bt ? ' chon' : '') + '" data-ma="' + t.ma + '" data-nh="' + t.chu + '" href="' +
-      (bt ? location.pathname.split('/').pop() : '#') + '" title="' + t.chu + '" aria-label="' + t.chu + '">' + IC[t.ma] + '</a>';
+  $('.nwb-tabs', dau).innerHTML = tabs.map(function (t, i) {
+    var dauTien = i === 0;
+    return '<a class="nwb-tab' + (dauTien ? ' chon' : '') + '" data-ma="' + t.ma + '" data-nh="' + t.chu + '" href="' +
+      (dauTien ? location.pathname.split('/').pop() : '#') + '" title="' + t.chu + '" aria-label="' + t.chu + '">' + IC[t.ma] + '</a>';
   }).join('');
-  $('#nwbMenu').innerHTML = IC.menu3;
+  var nutMenu = $('.nwb-menu', dau);
+  nutMenu.innerHTML = IC.menu3;
 
   dau.addEventListener('click', function (e) {
     var t = e.target.closest('.nwb-tab');
     if (!t) return;
     e.preventDefault();
-    if (t.getAttribute('data-ma') === 'baiTap') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
-    moSap(t.getAttribute('data-ma'));
+    var ma = t.getAttribute('data-ma');
+    if (ma === 'baiTap' || ma === 'quanLy') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    moSap(ma);
   });
 
   // Avatar = TRANG CÁ NHÂN (chưa mở). Gán đè onclick cũ của trang (mở sidebar).
-  var av = $('#nutMenu');
+  var av = $('#nutMenu') || $('#nwbAv');
   if (av) { av.title = 'Trang cá nhân'; av.onclick = function () { moSap('caNhan'); }; }
 
-  // ☰ = sidebar cũ (ví sao + menu), mở lại luôn thấy MENU CHÍNH như nút avatar cũ.
-  $('#nwbMenu').onclick = function () {
+  // ☰ học sinh = sidebar cũ (ví sao + menu), mở lại luôn thấy MENU CHÍNH như nút avatar cũ.
+  // ☰ thầy mang id="moSb" ⇒ dashboard tự gắn moSb() như nút "Andrew Classes" cũ, không cần gắn ở đây.
+  if (!laThay) nutMenu.onclick = function () {
     if (typeof window.veMenuChinh === 'function') window.veMenuChinh();
     document.body.classList.add('mo-menu');
   };
+
+  // ---------- CỘT TRÁI QUẢN LÝ (thầy) — danh mục y myNetwork quanly.html; mục Network tạm "sắp ra mắt" ----------
+  var cot = $('#nwbQlCot');
+  if (!laThay || !cot) return;
+  var P2 = function (d) { return '<svg viewBox="0 0 24 24">' + d + '</svg>'; };
+  var ICQ = {
+    nhom: P2('<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>'),
+    sao: P2('<path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4 6.1 20.5l1.2-6.5L2.5 9.4l6.6-.9z"/>'),
+    suKien: P2('<rect x="3" y="4" width="18" height="17" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M8 14h3M13 14h3M8 17.5h3"/>'),
+    baoCao: P2('<path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/>'),
+    an: P2('<path d="M17.9 17.9A10.9 10.9 0 0 1 12 20c-7 0-11-8-11-8a20 20 0 0 1 5.1-6"/><path d="M9.9 4.2A9.1 9.1 0 0 1 12 4c7 0 11 8 11 8a20 20 0 0 1-2.2 3.2"/><path d="M14.1 14.1a3 3 0 1 1-4.2-4.2"/><line x1="1" y1="1" x2="23" y2="23"/>'),
+    tuCam: P2('<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>'),
+    lop: P2('<path d="M3 10.8 12 6l9 4.8-9 4.8z"/><path d="M6.5 12.6v4.4c0 1.2 2.5 2.5 5.5 2.5s5.5-1.3 5.5-2.5v-4.4"/><path d="M21 10.8V16"/>')
+  };
+  var MUC_QL = [
+    { nhom: 'BÀI TẬP' },
+    { ma: 'baiTap', chu: 'Trang bài tập', ic: IC.baiTap },
+    { nhom: 'NETWORK' },
+    { ma: 'nhom', chu: 'Nhóm chat', ic: ICQ.nhom, mo: 'Lập và quản lý nhóm chat các lớp' },
+    { ma: 'baiDang', chu: 'Bài đăng', ic: IC.bangTin, mo: 'Xem, ẩn, xoá bài đăng của học sinh' },
+    { ma: 'noiBat', chu: 'Nổi bật', ic: ICQ.sao, mo: 'Ghim và sắp xếp bài nổi bật' },
+    { ma: 'suKien', chu: 'Sự kiện & Khám phá', ic: ICQ.suKien, mo: 'Đăng trò chơi, giải đấu, khoá học, thông báo' },
+    { ma: 'baoCao', chu: 'Báo cáo', ic: ICQ.baoCao, mo: 'Xử lý báo cáo vi phạm từ học sinh' },
+    { ma: 'daAn', chu: 'Bài đã ẩn', ic: ICQ.an, mo: 'Xem lại và khôi phục bài đã ẩn' },
+    { ma: 'tuCam', chu: 'Từ cấm', ic: ICQ.tuCam, mo: 'Thêm bớt từ cấm cho cả mạng' },
+    { ma: 'taiKhoan', chu: 'Tài khoản', ic: IC.caNhan, mo: 'Cấp, khoá, đặt lại mật khẩu tài khoản' },
+    { ma: 'lop', chu: 'Lớp', ic: ICQ.lop, mo: 'Xem thành viên từng lớp trên mạng' }
+  ];
+  cot.innerHTML = MUC_QL.map(function (m) {
+    if (m.nhom) return '<div class="nwb-ql-nhom">' + m.nhom + '</div>';
+    return '<button type="button" class="nwb-ql-muc' + (m.ma === 'baiTap' ? ' chon' : '') + '" data-muc="' + m.ma + '">' + m.ic + '<span>' + m.chu + '</span></button>';
+  }).join('');
+  MUC_QL.forEach(function (m) {
+    if (!m.mo) return;
+    IC[m.ma] = m.ic; TEN[m.ma] = m.chu.toUpperCase();
+    GIOI_THIEU[m.ma] = { chu: m.mo, ds: [] };
+  });
+  cot.addEventListener('click', function (e) {
+    var b = e.target.closest('.nwb-ql-muc');
+    if (!b) return;
+    var ma = b.getAttribute('data-muc');
+    if (ma === 'baiTap') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    moSap(ma);
+  });
 })();
