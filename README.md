@@ -19,3 +19,4 @@ Hồ sơ đầy đủ: `E:\LAP TRINH APP\myNetwork\BAN GIAO.md` (khối 🚀🚀
 - **File chung** (dashboard cũng nạp): `config.js`, `js/chung.js`, `js/chat.js`, `js/thay.js`, `js/nw-thanh.js`, `css/nw-thanh.css` — đưa sang thật chỉ gắn
   ĐOẠN thay đổi lên bản thật mới nhất (không chép cả file), rồi thử lại cả dashboard. Commit sửa file chung ghi "(file chung)".
 - Trước khi build: kiểm kho `web` thật có bản mới ⇒ đồng bộ về đây trước. Chi tiết: `myNetwork\BAN GIAO.md` khối "LUẬT CHIA VÙNG".
+- ⭐ Ngoại lệ: mục NETWORK trong trang quản lý (chặng 7) vẫn build ở đây — viết FILE RIÊNG (`js/nw-quanly.js`…), `dashboard.html` chỉ thêm vài dòng móc; đưa sang thật = chép file riêng + gắn mấy dòng móc lên dashboard thật mới nhất (báo thầy trước).
