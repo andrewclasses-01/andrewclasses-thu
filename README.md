@@ -11,3 +11,11 @@ Hồ sơ đầy đủ: `E:\LAP TRINH APP\myNetwork\BAN GIAO.md` (khối 🚀🚀
 - ⚠ Dùng CHUNG dữ liệu thật (Firestore `aword-70dae`): làm bài ở đây = ghi thật vào tên em đã đăng nhập.
 - Đồng bộ lại từ trang thật: `git archive origin/main` của kho `web` → bỏ `data/ assets/avatar/ tools/ CNAME README.md .gitignore` → chép đè vào đây →
   `python thu\doi-duong-du-lieu.py` (phải báo 14/6/1/1) → thử cổng 8825 → push.
+
+## ⛔⛔ Luật chia vùng (thầy chốt tối 24/09/2026)
+- **Trang quản lý (`dashboard.html`) + tính năng trong đó**: thầy build THẲNG trên andrewclasses.com (kho `web` thật). Kho này CHỈ NHẬN qua đồng bộ bản vá —
+  ⛔ không sửa `dashboard.html` ở đây, ⛔ không bao giờ chép `dashboard.html` từ đây sang thật.
+- **Tính năng myNetwork ngoài trang quản lý**: build ở đây → thầy "ok" → đưa sang thật.
+- **File chung** (dashboard cũng nạp): `config.js`, `js/chung.js`, `js/chat.js`, `js/thay.js`, `js/nw-thanh.js`, `css/nw-thanh.css` — đưa sang thật chỉ gắn
+  ĐOẠN thay đổi lên bản thật mới nhất (không chép cả file), rồi thử lại cả dashboard. Commit sửa file chung ghi "(file chung)".
+- Trước khi build: kiểm kho `web` thật có bản mới ⇒ đồng bộ về đây trước. Chi tiết: `myNetwork\BAN GIAO.md` khối "LUẬT CHIA VÙNG".
