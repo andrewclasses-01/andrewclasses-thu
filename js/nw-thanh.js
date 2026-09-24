@@ -52,12 +52,12 @@
 
   // ⭐ thầy 24/09: mỗi tính năng có lời giới thiệu ngắn, kích thích tò mò + đếm ngược tới 00:00 01/10/2026 (giờ VN).
   var GIOI_THIEU = {
-    khamPha: { chu: 'Cả thế giới hoạt động của Andrew Classes', ds: ['Trò chơi & giải đấu online — thi tài với bạn khắp các lớp', 'Khoá học mới, chương trình đặc biệt của trung tâm', 'Bảng vàng: xem ai đang dẫn đầu!'] },
-    tinNhan: { chu: 'Nhắn tin riêng với bạn bè và thầy Andrew', ds: ['Chat riêng, chat nhóm cả lớp', 'Thả 7 cảm xúc, trả lời đúng tin nhắn', 'Biết ngay bạn nào đang online'] },
-    bangTin: { chu: 'Nơi cả Andrew Classes cùng khoe và chia sẻ', ds: ['Đăng ảnh, khoe thành tích, kể chuyện lớp mình', 'Thả cảm xúc, bình luận bài của bạn', 'Bài hay nhất được thầy ghim NỔI BẬT'] },
+    khamPha: { chu: 'Cả thế giới thú vị cùng Andrew Classes', ds: ['Trò chơi & giải đấu online — thi tài với bạn khắp các lớp', 'Khám phá những khóa học bổ ích', 'Xem những gì nổi bật và thịnh hành'] },
+    tinNhan: { chu: 'Trò chuyện và chia sẻ những điều thú vị', ds: ['Chat riêng với bạn, chat nhóm cùng cả lớp'] },
+    bangTin: { chu: 'Thế giới ngoài kia có gì?', ds: ['Đăng ảnh, chia sẻ thành tích, kể chuyện lớp mình', 'Bình luận với những bài đăng thú vị'] },
     chuong: { chu: 'Không bỏ lỡ bất cứ điều gì', ds: ['Ai vừa thả tim, bình luận bài của em', 'Lời mời kết bạn từ các lớp khác', 'Tin quan trọng từ thầy Andrew'] },
     timKiem: { chu: 'Tìm mọi người, mọi bài viết chỉ trong một chạm', ds: ['Tìm bạn cũ, bạn mới ở mọi lớp', 'Tìm lại bài đăng, nhóm chat', 'Kết bạn để mở rộng vòng bạn bè'] },
-    caNhan: { chu: 'Trang riêng mang đậm chất của em', ds: ['Ảnh bìa, ảnh đại diện, lời giới thiệu', 'Sở thích và bài viết của riêng em', 'Kết bạn với các bạn ở lớp khác'] },
+    caNhan: { chu: 'Thế giới của riêng em', ds: ['Ảnh bìa, ảnh đại diện, lời giới thiệu', 'Sở thích và bài viết của riêng em', 'Ghi lại những kỷ niệm, chia sẻ hành trình của riêng em'] },
     dangKy: { chu: 'Học sinh mới đăng ký học ngay trên web', ds: ['Đăng ký kiểm tra đầu vào', 'Đăng ký học thử', 'Thầy liên hệ lại sớm nhất'] }
   };
   var MOC_RA_MAT = Date.parse('2026-10-01T00:00:00+07:00');
