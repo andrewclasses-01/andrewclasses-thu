@@ -5,7 +5,8 @@
 **Quy trình (thầy chốt 24/09/2026):** build các trang myNetwork ở đây, chạy live để thầy thử → thầy chốt "ok" từng chặng → mới đưa chặng đó sang kho `web` thật.
 Hồ sơ đầy đủ: `E:\LAP TRINH APP\myNetwork\BAN GIAO.md` (khối 🚀🚀 24/09).
 
-- Đang khớp trang thật **web v1.140.0** `0f54ab9` (đồng bộ 24/09, `ccbe10a`).
+- Đang khớp trang thật **web v1.160.0** `e2d60f8` (đồng bộ 27/09 — gồm đăng nhập MẬT KHẨU v1.158.0 đã làm THẲNG trên thật khi bị tấn công,
+  bản thật là bản đầy đủ của chặng 1 ở đây; ⚠ khung AWord ở trang thử KHÔNG nhận vé (AWord chỉ tin andrewclasses.com) ⇒ nộp điểm ở đây nằm hộp chờ).
 - ⛔ KHÔNG chứa dữ liệu học sinh: `data/`, `assets/avatar/`, `tools/` bị .gitignore, KHÔNG có `CNAME`.
   Mọi đường `data/…`, `assets/avatar/…` đã đổi sang `https://andrewclasses.com/…` bằng `thu/doi-duong-du-lieu.py`.
 - ⚠ Dùng CHUNG dữ liệu thật (Firestore `aword-70dae`): làm bài ở đây = ghi thật vào tên em đã đăng nhập.

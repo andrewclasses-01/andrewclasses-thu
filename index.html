@@ -9,10 +9,11 @@
 <link rel="stylesheet" href="nw/nw.css?v=1">
 <link rel="stylesheet" href="css/nw-thanh.css?v=6">
 <style>
-/* chặng 1 (trang thử 24/09): "Quên mật khẩu?" → hộp Liên hệ */
+/* v1.158.0 (27/09, sau tấn công Tr0ngX): ô mật khẩu MỞ — chép chặng 1 trang thử; "Quên mật khẩu?" → hộp Liên hệ */
 .dn-quen{margin:-4px 0 12px; text-align:right; font-size:13px}
 .dn-quen button{color:var(--accent); font-weight:700}
 .dn-quen button:hover{text-decoration:underline}
+.dn-goiy{margin:-2px 0 14px; font-size:12.5px; color:var(--muted); text-align:center; line-height:1.45}
 /* màn chọn nơi học (em có mã ở 2 nơi) */
 .dn-chao{display:flex; flex-direction:column; align-items:center; text-align:center; margin:-4px 0 16px}
 .dn-chao .av{width:64px; height:64px; font-size:22px; margin-bottom:10px; box-shadow:0 6px 18px rgba(14,124,110,.22)}
@@ -45,7 +46,6 @@
 
       <section class="man" id="manVao">
         <label class="dn-o gon"><input id="inMa" type="text" autocomplete="username" placeholder="Andrew Classes ID" data-goi="Andrew Classes ID" autocapitalize="characters" spellcheck="false"></label>
-        <!-- chặng 1 myNetwork (trang thử 24/09): ô mật khẩu MỞ — đăng nhập Firebase Auth; thầy chốt KHÔNG gợi ý "lần đầu = ID" -->
         <label class="dn-o gon"><input id="inMk" type="password" autocomplete="current-password" placeholder="Mật khẩu" data-goi="Mật khẩu"></label>
         <p class="dn-quen"><button type="button" id="btnQuenMk">Quên mật khẩu?</button></p>
         <button class="btn primary wide" id="btnVao">ĐĂNG NHẬP</button>
@@ -60,9 +60,10 @@
         <div class="nut-thay"><button type="button" id="btnKhac">Không phải em? Đăng nhập ID khác</button></div>
       </section>
 
-      <!-- lần đầu vào (phaiDoiMk) — em tự đặt mật khẩu riêng -->
+      <!-- v1.158.0: lần đầu vào bằng mật khẩu lớp (phaiDoiMk) — em tự đặt mật khẩu riêng -->
       <section class="man" id="manDoiMk">
-        <div class="dn-chao"><h2 id="doiMkTen">Đặt mật khẩu mới</h2></div>
+        <div class="dn-chao"><h2 id="doiMkTen">Đặt mật khẩu riêng</h2></div>
+        <p class="dn-goiy">Mật khẩu lớp cả lớp đều biết. Em đặt mật khẩu của riêng em (ít nhất 8 ký tự) và nhớ kỹ nhé.</p>
         <label class="dn-o gon"><input id="mkMoi" type="password" autocomplete="new-password" placeholder="Mật khẩu mới" data-goi="Mật khẩu mới"></label>
         <label class="dn-o gon"><input id="mkMoi2" type="password" autocomplete="new-password" placeholder="Nhập lại mật khẩu mới" data-goi="Nhập lại mật khẩu mới"></label>
         <button class="btn primary wide" id="btnLuuMk">LƯU MẬT KHẨU</button>
@@ -76,10 +77,11 @@
   </div>
 </div>
 
-<script src="config.js?v=111"></script>
-<script src="js/chung.js?v=59"></script>
-<script src="js/nw-phien.js?v=1"></script>
+<script src="config.js?v=139"></script>
+<script src="js/app-check.js?v=1"></script>
+<script src="js/chung.js?v=63"></script>
+<script src="js/nw-phien.js?v=2"></script>
 <script src="js/nw-dangnhap.js?v=2"></script>
-<script src="js/nw-thanh.js?v=7"></script>
+<script src="js/nw-thanh.js?v=10"></script>
 </body>
 </html>

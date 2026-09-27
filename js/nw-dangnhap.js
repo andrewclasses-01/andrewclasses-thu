@@ -8,9 +8,12 @@
      · học sinh đặc biệt (phụ huynh) → lop.html · mã quản lý → dashboard.html
    Logic chép từ js/dangnhap.js — ⛔ sửa luật vào lớp thì sửa CẢ HAI nơi cho tới khi bỏ file cũ.
 
-   ⭐ CHẶNG 1 myNetwork (TRANG THỬ, 24/09/2026): học sinh vào bằng ID + MẬT KHẨU (Firebase Auth, js/nw-phien.js).
-     · lần đầu (hồ sơ nwUsers có phaiDoiMk) → màn ĐẶT MẬT KHẨU MỚI rồi mới vào lớp
+   ⭐⭐ v1.158.0 (27/09/2026, sau tấn công Tr0ngX — thầy chốt) — MỞ Ô MẬT KHẨU (Firebase Auth, js/nw-phien.js).
+   Chép từ chặng 1 của trang thử `andrewclasses-thu` (24/09), thêm luật thầy chốt 27/09:
+     · lần đầu em vào bằng MẬT KHẨU LỚP thầy phát (hồ sơ nwUsers có phaiDoiMk) → màn ĐẶT MẬT KHẨU MỚI:
+       ≥ MK_TOI_THIEU ký tự, khác ID, KHÁC mật khẩu vừa dùng để vào (= mật khẩu lớp — cả lớp đều biết)
      · máy đã nhớ em nhưng KHÔNG còn phiên Firebase đúng mã đó → bắt đăng nhập lại (điền sẵn ID)
+       (máy cũ từ trước v1.158.0 rơi vào đây ⇒ "đăng xuất mọi máy")
      · phụ huynh (hsDb) + mã quản lý: vào như cũ, KHÔNG hỏi mật khẩu (chưa có tài khoản Firebase)
      · "Quên mật khẩu?" → hộp Liên hệ (js/nw-thanh.js); thầy đặt lại bằng tools/tao-tai-khoan.mjs --reset
    ============================================================ */
@@ -20,6 +23,7 @@
   var P = window.NWP;
   var DL = { lop: [], bai: {} };
   var $ = function (s) { return document.querySelector(s); };
+  var MK_TOI_THIEU = 8;           // ⛔ PHẢI khớp myNetwork/tools/tao-tai-khoan.mjs MK_TOI_THIEU
 
   function man(ten) { document.querySelectorAll('.man').forEach(function (m) { m.classList.toggle('hien', m.id === ten); }); }
   function loi(chu) { var p = $('#loiVao'); p.hidden = !chu; p.textContent = chu || ''; }
@@ -64,9 +68,11 @@
   }
 
   // ---------- màn ĐẶT MẬT KHẨU MỚI (lần đầu) ----------
-  var cho = null;          // { ds, ma } — nơi em sẽ vào sau khi lưu mật khẩu
-  function moDoiMk(ds, ma) {
-    cho = { ds: ds, ma: ma };
+  var cho = null;          // { ds, ma, mkCu } — nơi em sẽ vào sau khi lưu mật khẩu; mkCu = mật khẩu vừa gõ để vào
+  function moDoiMk(ds, ma, mkCu) {
+    cho = { ds: ds, ma: ma, mkCu: mkCu || '' };
+    var ten = (ds[0] && ds[0].em && ds[0].em.ten) || '';
+    $('#doiMkTen').textContent = ten ? 'Chào ' + ten + ', đặt mật khẩu riêng' : 'Đặt mật khẩu riêng';
     $('#mkMoi').value = ''; $('#mkMoi2').value = ''; loiMk('');
     man('manDoiMk');
     $('#mkMoi').focus();
@@ -74,18 +80,27 @@
   function luuMk() {
     var m1 = $('#mkMoi').value, m2 = $('#mkMoi2').value;
     loiMk('');
-    if (m1.length < 6) { loiMk('Mật khẩu cần ít nhất 6 ký tự.'); $('#mkMoi').focus(); return; }
+    if (m1.length < MK_TOI_THIEU) { loiMk('Mật khẩu cần ít nhất ' + MK_TOI_THIEU + ' ký tự.'); $('#mkMoi').focus(); return; }
     if (A.chuanMa(m1) === A.chuanMa(cho.ma)) { loiMk('Mật khẩu mới phải khác ID của em.'); $('#mkMoi').focus(); return; }
+    // Mật khẩu lớp cả lớp đều biết — giữ lại là bạn nào cũng vào được tài khoản của em.
+    if (/andrewclasses/i.test(m1) || (cho.mkCu && m1.toLowerCase() === cho.mkCu.toLowerCase())) {
+      loiMk('Đừng dùng lại mật khẩu lớp — cả lớp đều biết. Em đặt mật khẩu của riêng em nhé.'); $('#mkMoi').focus(); return;
+    }
     if (m1 !== m2) { loiMk('Hai lần nhập chưa giống nhau.'); $('#mkMoi2').focus(); return; }
     var nut = $('#btnLuuMk'); nut.disabled = true;
-    P.datMatKhau(m1).then(function () { tiepTuc(cho.ds, cho.ma); })
-      ['catch'](function (e) { nut.disabled = false; console.warn('[nw] đặt mật khẩu lỗi', e); loiMk(P.chuLoi(e)); });
+    P.datMatKhau(m1).then(function () { nut.disabled = false; tiepTuc(cho.ds, cho.ma); })
+      ['catch'](function (e) {
+        nut.disabled = false; console.warn('[phien] đặt mật khẩu lỗi', e);
+        // phiên đã cũ (em để màn này quá lâu) ⇒ quay về đăng nhập lại
+        if (e && e.code === 'auth/requires-recent-login') { loi(P.chuLoi(e)); veManVao(A.chuanMa(cho.ma)); return; }
+        loiMk(P.chuLoi(e));
+      });
   }
 
   // Đăng nhập Firebase xong: hồ sơ còn cờ phaiDoiMk ⇒ đặt mật khẩu trước. Đọc hồ sơ lỗi thì cho vào luôn (không chặn em học bài).
-  function sauDangNhap(u, ds, ma) {
-    return P.hoSo(u).then(function (hs) { return hs && hs.phaiDoiMk; }, function (e) { console.warn('[nw] đọc hồ sơ lỗi', e); return false; })
-      .then(function (phaiDoi) { if (phaiDoi) moDoiMk(ds, ma); else tiepTuc(ds, ma); });
+  function sauDangNhap(u, ds, ma, mk) {
+    return P.hoSo(u).then(function (hs) { return hs && hs.phaiDoiMk; }, function (e) { console.warn('[phien] đọc hồ sơ lỗi', e); return false; })
+      .then(function (phaiDoi) { if (phaiDoi) moDoiMk(ds, ma, mk); else tiepTuc(ds, ma); });
   }
 
   function vao() {
@@ -97,8 +112,8 @@
     if (noi.length) {
       if (!mk) { loi('Em nhập mật khẩu nhé.'); $('#inMk').focus(); return; }
       nut.disabled = true;
-      P.dangNhap(go, mk).then(function (u) { return sauDangNhap(u, noi, go); })
-        ['catch'](function (e) { nut.disabled = false; console.warn('[nw] đăng nhập lỗi', e); loi(P.chuLoi(e)); });
+      P.dangNhap(go, mk).then(function (u) { nut.disabled = false; return sauDangNhap(u, noi, go, mk); })
+        ['catch'](function (e) { nut.disabled = false; console.warn('[phien] đăng nhập lỗi', e); loi(P.chuLoi(e)); });
       return;
     }
     var db = A.emDacBietTheoMa(DL, go);
@@ -160,11 +175,11 @@
     } else if (nho && nho.ma) {
       var noiCu = A.moiNoiTheoMa(dl, nho.ma);
       if (noiCu.length) {
-        // chặng 1: chỉ vào thẳng khi Firebase còn giữ phiên ĐÚNG em này
+        // v1.158.0: chỉ vào thẳng khi Firebase còn giữ phiên ĐÚNG em này
         var u = await P.phienCuaMa(nho.ma)['catch'](function () { return null; });
         if (u) {
           var phaiDoi = await P.hoSo(u).then(function (hs) { return hs && hs.phaiDoiMk; }, function () { return false; });
-          if (phaiDoi) { moDoiMk(noiCu, nho.ma); return; }
+          if (phaiDoi) { moDoiMk(noiCu, nho.ma, ''); return; }
           if (noiCu.length > 1) { moChon(noiCu); return; }
           location.replace(trangCua(noiCu[0].lop)); return;
         }

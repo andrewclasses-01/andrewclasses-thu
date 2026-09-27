@@ -68,6 +68,9 @@
 
    ⚠️ Luật này cho AI CŨNG ĐỌC VÀ GỬI ĐƯỢC (không đòi đăng nhập) — đúng mức tin
    cậy mà cả hệ này đang có: mã học sinh vốn nằm công khai trong `lop.json`.
+   ⭐⭐ HẾT ĐÚNG từ v1.158.0 (27/09/2026, sau tấn công Tr0ngX): GỬI tin học sinh đòi phiên Firebase
+   Auth của CHÍNH em (`request.auth.token.ma == code`, mật khẩu thật — js/nw-phien.js); cảm xúc chỉ sửa
+   được ô của mình. Luật đăng bằng `tools/dang-luat-mat-khau.js`. ĐỌC vẫn công khai.
    ============================================================ */
 
 /* ============================================================
@@ -187,8 +190,11 @@
       }
       _may = String(m).slice(0, 20);
     } catch (e) {
-      // Cửa sổ ẩn danh / trình duyệt chặn lưu: chịu, gửi tin không kèm dấu máy.
+      // Cửa sổ ẩn danh / trình duyệt chặn lưu: sinh dấu máy TẠM cho riêng lần mở
+      // trang này. (27/09/2026) Luật nay BẮT BUỘC có dấu máy — trả '' là em không
+      // chat được. Dấu tạm vẫn đủ phân biệt máy trong một buổi.
       _may = '';
+      for (var j = 0; j < 10; j++) _may += Math.floor(Math.random() * 36).toString(36);
     }
     return _may;
   }
@@ -288,19 +294,69 @@
         text: chu,
         createdAt: Date.now()
       };
-      var may = dauMay();
-      if (!may) return f.fs.addDoc(oChat, goc);        // ẩn danh: gửi kiểu cũ luôn
-
-      var kem = Object.assign({ may: may }, goc);
-      return f.fs.addDoc(oChat, kem)['catch'](function (e) {
-        /* ⛔ ĐƯỜNG LÙI — xem khối "DẤU MÁY" ở đầu file. CHỈ lùi khi kho từ chối
-           vì luật (`permission-denied`): đó đúng là cảnh "luật cũ còn hasOnly 5
-           trường". Lỗi khác (mất mạng, hết hạn mức…) mà cũng gửi lại là tin
-           HIỆN HAI LẦN — nên để nó ném ra cho nơi gọi báo người dùng. */
+      /* (27/09/2026, sau tấn công Tr0ngX) Luật BẮT BUỘC dấu máy ⇒ bỏ ĐƯỜNG LÙI
+         "gửi lại không kèm dấu máy" (v1.80.0) — gửi lại kiểu đó nay chắc chắn bị từ chối.
+         Kho từ chối thì đổi thành lỗi dễ hiểu cho học sinh (xem chuLoi). */
+      var kem = Object.assign({ may: dauMay() }, goc);
+      // ⭐⭐ v1.158.0 (27/09/2026) — luật đòi PHIÊN ĐĂNG NHẬP đúng mã người gửi (token.ma == code).
+      // Chờ Firebase Auth khôi phục phiên TRƯỚC khi ghi, không thì Firestore gửi đi KHÔNG kèm danh tính
+      // (auth chưa kịp khởi động) và bị từ chối oan. Thầy (role gv) đi phiên thầy như cũ.
+      var laHs = goc.role === 'hs';
+      var choPhien = (laHs && window.NWP) ? window.NWP.phienCuaMa(goc.code)['catch'](function () { return null; }) : Promise.resolve(true);
+      return choPhien.then(function (u) {
+        if (laHs && window.NWP && !u) { var l0 = new Error('chưa đăng nhập'); l0.code = 'awc/can-dang-nhap'; throw l0; }
+        return f.fs.addDoc(oChat, kem);
+      })['catch'](function (e) {
         var ma = String((e && (e.code || e.message)) || '');
         if (ma.indexOf('permission-denied') < 0) throw e;
-        return f.fs.addDoc(oChat, goc);
+        return docKhanCap().then(function (k) {
+          var loi = new Error('chat bị từ chối');
+          loi.code = k.khoaChat ? 'awc/chat-khoa' : 'awc/tin-bi-chan';
+          throw loi;
+        });
       });
+    });
+  }
+
+  /* ============================================================
+     🚨 27/09/2026 — CÔNG TẮC KHẨN CẤP (sau tấn công Tr0ngX)
+     Tài liệu `lessonWeb/khanCap` { khoaChat, khoaDiem, luc, lyDo }. Luật Firestore:
+     khoaChat ⇒ từ chối mọi tin chat mới (trừ thầy); khoaDiem ⇒ từ chối điểm AWord
+     (scores + results; AWord tự giữ bài trong hộp chờ và gửi lại khi mở khoá).
+     CHỈ phiên thầy ghi được. Nút bật/tắt: dashboard (thanh trên cùng, 🚨).
+     Chuông báo động trên máy thầy cũng tự bật khoaChat khi thấy rác hàng loạt.
+     ============================================================ */
+  var KHAN_CAP_TRONG = { khoaChat: false, khoaDiem: false, luc: 0, lyDo: '' };
+  function chuanKhanCap(d) {
+    d = d || {};
+    return { khoaChat: d.khoaChat === true, khoaDiem: d.khoaDiem === true,
+             luc: Number(d.luc) || 0, lyDo: String(d.lyDo || '') };
+  }
+  function docKhanCap() {
+    return db().then(function (f) {
+      return f.fs.getDoc(f.fs.doc(f.db, 'lessonWeb', 'khanCap'));
+    }).then(function (s) { return chuanKhanCap(s.exists() ? s.data() : null); },
+            function () { return Object.assign({}, KHAN_CAP_TRONG); });
+  }
+  // Nghe sống. Trả hàm gỡ. Lỗi (mất mạng…) ⇒ coi như KHÔNG khoá, đừng chặn nhầm em.
+  function ngheKhanCap(cb) {
+    var go = null, huy = false;
+    db().then(function (f) {
+      if (huy) return;
+      go = f.fs.onSnapshot(f.fs.doc(f.db, 'lessonWeb', 'khanCap'),
+        function (s) { cb(chuanKhanCap(s.exists() ? s.data() : null)); },
+        function () { cb(Object.assign({}, KHAN_CAP_TRONG)); });
+    });
+    return function () { huy = true; if (go) go(); };
+  }
+  // Dashboard gọi (cần phiên thầy). `vao` = { khoaChat?, khoaDiem?, lyDo? }.
+  function datKhanCap(vao) {
+    return db().then(function (f) {
+      var d = { luc: Date.now() };
+      if ('khoaChat' in vao) d.khoaChat = !!vao.khoaChat;
+      if ('khoaDiem' in vao) d.khoaDiem = !!vao.khoaDiem;
+      if ('lyDo' in vao) d.lyDo = String(vao.lyDo || '').slice(0, 200);
+      return f.fs.setDoc(f.fs.doc(f.db, 'lessonWeb', 'khanCap'), d, { merge: true });
     });
   }
 
@@ -314,7 +370,9 @@
   function suaCx(maLop, tinId, maNguoi, ma, ten) {
     var khoa = String(maNguoi || '').replace(/[.$#[\]/]/g, '_');
     if (!khoa) return Promise.reject(new Error('thieu-ma-nguoi'));
-    return db().then(function (f) {
+    // v1.158.0 — luật: học sinh chỉ sửa ĐÚNG ô cảm xúc của mình (khoá = token.ma) ⇒ chờ phiên như gui().
+    var choPhien = (khoa !== 'GV' && window.NWP) ? window.NWP.userHienTai()['catch'](function () { return null; }) : Promise.resolve(null);
+    return choPhien.then(db).then(function (f) {
       var truong = 'cx.' + khoa;
       var patch = {};
       patch[truong] = ma ? { ma: String(ma), ten: String(ten || '?').slice(0, 60), luc: Date.now() }
@@ -408,6 +466,10 @@
   // khung chat trống trơn rồi ai cũng tưởng "lớp chưa ai nhắn gì".
   function chuLoi(e) {
     var ma = (e && (e.code || e.message)) || '';
+    // (27/09/2026) hai lỗi dành cho HỌC SINH — đặt bởi gui()
+    if (ma === 'awc/chat-khoa') return 'Chat đang tạm khoá, em quay lại sau nhé.';
+    if (ma === 'awc/tin-bi-chan') return 'Tin chưa gửi được. Em bỏ đường link (nếu có) rồi gửi lại nhé.';
+    if (ma === 'awc/can-dang-nhap') return 'Phiên đăng nhập đã hết. Em tải lại trang và đăng nhập lại nhé.';
     if (String(ma).indexOf('permission-denied') >= 0) {
       // ⭐ v1.52.0 (gói bảo mật C): xoá tin · tin ký THẦY · lưu trữ nay đòi PHIÊN THẦY
       // (js/thay.js). Học sinh nhắn/thả cảm xúc vẫn không cần đăng nhập.
@@ -422,6 +484,7 @@
     luuKho: luuKho, dsKho: dsKho, tinMoiNhat: tinMoiNhat,
     chuGio: chuGio, chuLoi: chuLoi, TOI_DA_CHU: TOI_DA_CHU,
     dauMay: dauMay,                    /* ⭐ v1.80.0 — xem khối "DẤU MÁY" đầu file */
+    ngheKhanCap: ngheKhanCap, docKhanCap: docKhanCap, datKhanCap: datKhanCap,   /* 🚨 27/09/2026 */
     // ⭐ v1.38.0 — mở CỬA FIREBASE dùng chung cho khối khác (js/vi-qua.js đọc
     // kho quà `quaTang/catalog`). ⛔ Nơi khác ĐỪNG tự `initializeApp` /
     // `getFirestore()` lần nữa: cùng một app gọi hai lần là dính

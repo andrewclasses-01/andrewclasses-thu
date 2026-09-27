@@ -281,6 +281,7 @@
         BO_QUA = bang.boQua || {};
         TINH_CA = bang.tinhCa || {};
         BO_QUA_CHANG = bang.boQuaChang || {};   // v1.137.0
+        HAN_CHANG = bang.hanChang || {};        // v1.142.0
         MO_CHANG = bang.moChang || {};
         NGHI = r[3] || {};
         // ⭐ v1.119.0 — LỚP: bản mới hơn giữa lop.json và lessonWeb/lop.
@@ -362,6 +363,17 @@
   // qua ở chặng 2. `boQua` cũ (mảng, theo cả bài) VẪN ĐỌC và được hiểu = bỏ qua ở MỌI chặng
   // (thầy chốt "giữ nghĩa cũ") — xem `boQuaChangCua`. Luật Firestore: `app/tools/dang-luat-bo-qua-chang.js`.
   var BO_QUA_CHANG = {};
+  // ⭐⭐ v1.142.0 (24/09/2026, thầy chốt) — HẠN RIÊNG TỪNG CHẶNG: `hanChang` = map
+  // { "<số chặng>": "YYYY-MM-DDTHH:MM" } cùng tài liệu `lessonHan` (chuỗi RỖNG = đã gỡ, vì `setDoc merge`
+  // không xoá được khoá). CHỈ dùng cho các chặng TRƯỚC chặng cuối — chặng CUỐI đi bằng trường `han` cũ
+  // (`HAN_SUA`) để thẻ còn/hết hạn (`conHan`) đổi theo. Đè ở `changCuaBai`. Luật: `dang-luat-han-chang.js`.
+  var HAN_CHANG = {};
+  function hanChangGoc(b) { return HAN_CHANG[(b && b.id) || ''] || {}; }
+  function datHanChang(id, m) {
+    if (!id) return;
+    HAN_CHANG[id] = m || {};
+    luuDemHan();
+  }
 
   function boQuaCua(b) { return BO_QUA[(b && b.id) || ''] || []; }
   function boQuaChangGoc(b) { return BO_QUA_CHANG[(b && b.id) || ''] || {}; }
@@ -447,7 +459,7 @@
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (j) {
           // ⭐ v1.35.0 — trả HAI bảng {han, tt} thay vì một bảng hạn.
-          var ra = { han: {}, tt: {}, boQua: {}, tinhCa: {}, moChang: {}, boQuaChang: {} };
+          var ra = { han: {}, tt: {}, boQua: {}, tinhCa: {}, moChang: {}, boQuaChang: {}, hanChang: {} };
           var ds = (j && j.documents) || [];
           for (var i = 0; i < ds.length; i++) {
             var f = ds[i].fields || {};
@@ -481,6 +493,16 @@
               });
               if (Object.keys(m).length) ra.boQuaChang[id] = m;
             }
+            // v1.142.0 — `hanChang`: map { số chặng: chuỗi hạn } (chuỗi rỗng = đã gỡ, bỏ đi).
+            var hc = f.hanChang && f.hanChang.mapValue && f.hanChang.mapValue.fields;
+            if (hc) {
+              var mh = {};
+              Object.keys(hc).forEach(function (so) {
+                var v = String((hc[so] && hc[so].stringValue) || '');
+                if (v) mh[so] = v;
+              });
+              if (Object.keys(mh).length) ra.hanChang[id] = mh;
+            }
             var mc = f.moChang && (f.moChang.integerValue != null
                                    ? f.moChang.integerValue : f.moChang.doubleValue);
             if (mc != null) ra.moChang[id] = +mc || 0;
@@ -500,7 +522,7 @@
   function luuDemHan() {
     try { sessionStorage.setItem(KHOA_HAN,
       JSON.stringify({ luc: Date.now(),
-        bang: { han: HAN_SUA, tt: TT_THE, boQua: BO_QUA, tinhCa: TINH_CA, moChang: MO_CHANG, boQuaChang: BO_QUA_CHANG } })); } catch (e) {}
+        bang: { han: HAN_SUA, tt: TT_THE, boQua: BO_QUA, tinhCa: TINH_CA, moChang: MO_CHANG, boQuaChang: BO_QUA_CHANG, hanChang: HAN_CHANG } })); } catch (e) {}
   }
 
   // Chỉ nhận đúng 4 chữ; chữ lạ (kho bị ghi tay sai) coi như bình thường.
@@ -913,9 +935,17 @@
   }
 
   // Trang nào cũng gọi hàm này đầu tiên: chưa đăng nhập thì về màn đăng nhập.
+  // ⭐⭐ v1.158.0 (27/09/2026, sau tấn công Tr0ngX) — bộ nhớ máy thôi CHƯA ĐỦ: em thường phải còn PHIÊN
+  // Firebase Auth đúng mã (js/nw-phien.js `gac`), không thì về màn đăng nhập (máy cũ = tự đăng xuất).
+  // Kiểm SAU, không chặn vẽ trang. ⛔ Bỏ qua: thầy xem như em (`?nhu=`/`?gv=`) + phụ huynh (chưa có tài khoản).
+  // ⛔ Trang nào gọi hàm này mà QUÊN nạp js/nw-phien.js là KHÔNG canh cửa (im lặng) — lop/khoa/bai/bai-sp đều nạp.
   function batBuocDangNhap(dl) {
     var em = emDangHoc(dl);
     if (!em) { location.replace('index.html'); return null; }
+    if (!em.xemNhu && !em.dacBiet) {
+      if (window.NWP && window.NWP.gac) window.NWP.gac(em.ma);
+      else console.warn('[phien] trang này chưa nạp js/nw-phien.js — không canh cửa được');
+    }
     return em;
   }
 
@@ -995,13 +1025,19 @@
 
   var nhoDiem = {};
   var TUOI_TOI_DA_MS = 10 * 60 * 1000;
-  var KHOA_DIEM2 = 'awc_diem2_';
+  // ⭐ v1.147.0 (25/09/2026, GỘP PRACTICE + SUBMIT) — khoá đệm `awc_diem2_` → `awc_diem3_`: mỗi lượt nay
+  // mang thêm `dd` (lượt DỞ DANG) + `pt`, bản cũ trong localStorage không có ⇒ mỗi máy đọc lại MỘT lần/act.
+  var KHOA_DIEM2 = 'awc_diem3_';
 
+  // ⭐ v1.147.0 — `orderBy=createdAt desc`: đọc lượt MỚI NHẤT trước. Trước đây liệt kê theo mã tài liệu
+  // (`hw<mốc>…` = CŨ trước) nên khi chạm phanh số trang, lượt bị bỏ lại là lượt MỚI NHẤT — đúng lượt cần
+  // nhất. AWord gộp PRACTICE/SUBMIT ⇒ lượt nào có điểm cũng nộp, kho `scores` dày lên nhiều lần.
+  // ⚠️ `orderBy` bỏ qua tài liệu THIẾU `createdAt` — luật kho bắt buộc trường này (int) nên không có.
   function urlDiem(ma, token) {
     var db = CFG.AWORD_DB || {};
     var u = 'https://firestore.googleapis.com/v1/projects/' + db.projectId +
             '/databases/(default)/documents/assignments/' + encodeURIComponent(ma) +
-            '/scores?pageSize=300&key=' + db.apiKey;
+            '/scores?pageSize=300&orderBy=createdAt%20desc&key=' + db.apiKey;
     if (token) u += '&pageToken=' + encodeURIComponent(token);
     return u;
   }
@@ -1069,11 +1105,14 @@
                 // `createdAt` = lúc nộp (mốc mili giây, AWord ghi bằng Date.now()).
                 // Dùng làm "nộp lúc" trong bảng cả lớp; thiếu thì coi như 0.
                 luc: soF(f.createdAt),
+                // ⭐ v1.147.0 — lượt DỞ DANG (AWord Đợt 383: em bấm Start again / tải lại trang / đóng tab
+                // giữa ván). Điểm thật nhưng mẫu số KHÔNG chắc ⇒ không làm mẫu chuẩn, không tính "nộp là xong".
+                dd: !!(f.doDang && f.doDang.booleanValue),
               });
             });
-            // Mỗi trang 300 lượt; quá 3 trang thì dừng — một bài giao của một
-            // lớp không thể tới 900 lượt, đây chỉ là phanh an toàn.
-            if (d.nextPageToken && lan < 3) trang(d.nextPageToken, lan + 1);
+            // Mỗi trang 300 lượt; quá 10 trang (3.000 lượt) thì dừng — phanh an toàn. v1.147.0: 3 → 10 trang
+            // vì lượt nào có điểm cũng nộp; đọc MỚI trước nên chạm phanh thì lượt bị bỏ là lượt CŨ nhất.
+            if (d.nextPageToken && lan < 10) trang(d.nextPageToken, lan + 1);
             else xong(tatCa);
           })
           .catch(hong);
@@ -1136,9 +1175,13 @@
   // cả 14 act đang chạy của 8 lớp trước và sau khi sửa, chỉ act OPEN THE BOX đổi.
   // ⛔ ĐỪNG đổi sang mẫu số PHỔ BIẾN NHẤT hay LỚN NHẤT: lớn nhất là lượt sai
   // nhiều nhất lớp, lấy nó thì không em nào đủ điểm nữa.
+  // ⛔ v1.147.0 — lượt DỞ DANG (`dd`) KHÔNG được làm mẫu: AWord chỉ biết điểm lúc em bỏ, mẫu số của nó là
+  // số câu của lượt chơi chứ không phải cách template chấm (anagram chấm theo CHỮ CÁI) ⇒ lấy nó là tụt mẫu,
+  // cả lớp thành "xong" oan.
   function mauChuan(ds) {
     var m = 0;
     ds.forEach(function (r) {
+      if (r.dd) return;
       if (r.tong > 0 && (m === 0 || r.tong < m)) m = r.tong;
     });
     return m;
@@ -1154,25 +1197,36 @@
       var cu = theo[k];
       // ⭐ v1.131.0 — giữ MỌI lượt (`luot`) để hộp quản lý cộng tổng thời gian nộp
       // (dashboard tab THỜI LƯỢNG); phần gộp "lượt tốt nhất" bên dưới không đổi.
-      var lu = { id: r.id || '', ms: r.ms || 0, luc: r.luc || 0, diem: r.diem, tong: r.tong };
+      var lu = { id: r.id || '', ms: r.ms || 0, luc: r.luc || 0, diem: r.diem, tong: r.tong, dd: !!r.dd, pt: pt };
+      var g = Math.round((r.ms || 0) / 1000);
+      // ⭐ v1.147.0 (thầy chốt 24/09) — "NỘP LÚC" = lượt ĐẦU TIÊN em ĐẠT điểm tối đa (`lucDat`); chưa đạt thì
+      // lấy lúc của lượt TỐT NHẤT (`lucTot`). Trước đây là lượt nộp đầu tiên bất kỳ — nay lượt dở cũng nộp,
+      // lượt đầu có thể chỉ là vài câu rồi bỏ. `lucCuoi` = lượt gần nhất (hoạt động gần đây ở dashboard).
+      var dat = pt >= 100 && r.luc ? r.luc : 0;
+      // Lượt dở hiện điểm trên MẪU CHUẨN của act (mẫu số riêng của nó không chắc — xem mauChuan).
+      var tongHien = (r.dd && mau > 0) ? mau : r.tong;
       if (!cu) {
-        theo[k] = { ten: r.ten, ma: r.ma || '', diem: pt, giay: Math.round((r.ms || 0) / 1000),
-                    luc: r.luc || 0, cacTen: [r.ten], luot: [lu],
-                    tho: { diem: r.diem, tong: r.tong } };
+        theo[k] = { ten: r.ten, ma: r.ma || '', diem: pt, giay: g,
+                    lucDat: dat, lucTot: r.luc || 0, lucCuoi: r.luc || 0, coLuotDu: !r.dd,
+                    cacTen: [r.ten], luot: [lu],
+                    tho: { diem: r.diem, tong: tongHien } };
         return;
       }
       cu.cacTen.push(r.ten); cu.luot.push(lu);
       if (!cu.ma && r.ma) cu.ma = r.ma;
-      var g = Math.round((r.ms || 0) / 1000);
-      // Lượt NỘP ĐẦU TIÊN mới là mốc "em ấy nộp lúc mấy giờ" — em làm lại lần
-      // hai để lên điểm thì không vì thế mà thành người nộp muộn.
-      if (r.luc && (!cu.luc || r.luc < cu.luc)) cu.luc = r.luc;
+      if (!r.dd) cu.coLuotDu = true;
+      if (dat && (!cu.lucDat || dat < cu.lucDat)) cu.lucDat = dat;
+      if (r.luc > cu.lucCuoi) cu.lucCuoi = r.luc;
       if (pt > cu.diem || (pt === cu.diem && g < cu.giay)) {
-        cu.diem = pt; cu.giay = g; cu.tho = { diem: r.diem, tong: r.tong };
+        cu.diem = pt; cu.giay = g; cu.tho = { diem: r.diem, tong: tongHien }; cu.lucTot = r.luc || 0;
       }
     });
     var ra = [];
-    for (var k in theo) { theo[k].ten = tenDepNhat(theo[k].cacTen); ra.push(theo[k]); }
+    for (var k in theo) {
+      theo[k].ten = tenDepNhat(theo[k].cacTen);
+      theo[k].luc = theo[k].lucDat || theo[k].lucTot;
+      ra.push(theo[k]);
+    }
     ra.sort(function (a, b) {
       if (b.diem !== a.diem) return b.diem - a.diem;
       return a.giay - b.giay;
@@ -1329,7 +1383,10 @@
     var k = khoaTen(ten);
     for (var i = 0; i < (dsDiem || []).length; i++) {
       if (khoaEm(dsDiem[i]) !== k) continue;       // v1.134.0 — dòng điểm có `ma` thì khớp theo mã
-      if (!chuan || chuan.tru) return true;
+      // ⛔ v1.147.0 — bài chấm "nộp là xong" (Gameshow / có trừ điểm) đòi ít nhất MỘT lượt KHÔNG dở dang:
+      // em làm 1 câu rồi bấm Start again cũng được nộp (lượt dở), nhưng chưa phải là làm xong bài.
+      // `coLuotDu` thiếu = bản nhớ cũ (trước v1.147.0, chưa có lượt dở) ⇒ coi như có.
+      if (!chuan || chuan.tru) return dsDiem[i].coLuotDu !== false;
       return dsDiem[i].diem >= chuan.dinh;
     }
     return false;
@@ -1449,7 +1506,29 @@
       if (cuoi && cuoi.han === han) { cuoi.muc.push(ds[i]); if (laAct) cuoi.acts.push(ds[i]); continue; }
       ra.push({ han: han, moc: mocActHan(han), acts: laAct ? [ds[i]] : [], muc: [ds[i]], so: 0 });
     }
-    for (var j = 0; j < ra.length; j++) if (ra[j].han) ra[j].so = ++k;
+    for (var j = 0; j < ra.length; j++) { ra[j].hanHien = ra[j].han; if (ra[j].han) ra[j].so = ++k; }
+    // 🐛 v1.141.1 (24/09/2026) — "ĐỔI HẠN NỘP" trên dashboard với bài STAGE: hạn riêng (`HAN_SUA`)
+    // trước chỉ đổi `b.han` (= hạn chặng CUỐI lúc đẩy bài), còn chặng lấy hạn từ `han` của từng act
+    // ⇒ thầy đổi A2-B 18/9 sang 25/9 mà thẻ vẫn HẾT HẠN (chặng 3 vẫn 23/9). Nay hạn riêng = HẠN CHẶNG
+    // CUỐI: đè `moc` + `hanHien` (chữ trên ô hạn). ⛔ `han` GIỮ NGUYÊN — nó là KHOÁ ghép worksheet/nghe
+    // vào chặng (`wsHienCuaThe`, `hqPhamVi`, `hqSoChangWs`); chỗ nào HIỆN chữ hạn thì đọc `hanHien`.
+    // ⭐ v1.142.0 — rồi tới hạn riêng TỪNG CHẶNG (`hanChang`, các chặng trước chặng cuối).
+    var laSt = !!(b && b.id && laBaiStage(b));
+    var hcg = laSt ? hanChangGoc(b) : {};
+    for (var q = 0; q < ra.length; q++) {
+      var hq = ra[q].so ? hcg[String(ra[q].so)] : '';
+      var mq = hq ? mocActHan(hq) : null;
+      if (mq != null) { ra[q].moc = mq; ra[q].hanHien = hq; }
+    }
+    var sua = laSt ? HAN_SUA[b.id] : '';
+    if (typeof sua === 'string' && sua && k) {
+      for (var n = ra.length - 1; n >= 0; n--) {
+        if (!ra[n].so) continue;
+        var mSua = mocActHan(sua);
+        if (mSua != null) { ra[n].moc = mSua; ra[n].hanHien = sua; }
+        break;
+      }
+    }
     return ra;
   }
 
@@ -3219,6 +3298,7 @@
     changCuConThieu: changCuConThieu,   // ⭐ v1.128.0 — chặng cũ (trước chặng đang chạy) còn em chưa xong
     boQuaCua: boQuaCua, tinhCaCua: tinhCaCua, datTinhCa: datTinhCa,
     // ⭐ v1.137.0 — bỏ qua em THEO TỪNG CHẶNG
+    hanChangGoc: hanChangGoc, datHanChang: datHanChang,
     boQuaChangGoc: boQuaChangGoc, boQuaChangCua: boQuaChangCua, datBoQuaChang: datBoQuaChang,
     laStageCoChang: laStageCoChang, soChangCuaAct: soChangCuaAct,
     caLopCuaAct: caLopCuaAct, khongTinhCuaAct: khongTinhCuaAct,
