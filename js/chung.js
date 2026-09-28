@@ -884,6 +884,13 @@
       var lgv = lopTheoMa(dl, q.get('lop') || '');
       if (lgv) return { lop: lgv.maLop, ten: 'Thầy Andrew', ma: 'GV', vaiTro: 'gv', xemNhu: true };
     }
+    // ⭐ v1.168.0 — THẦY ĐĂNG NHẬP THAY EM (js/thay-vao.js): danh tính em THẬT (không `xemNhu` ⇒ nộp bài/làm bài được),
+    // KHÔNG ghi vào máy (không luuEm). Ghi được hay không là do PHIÊN (vé hàm máy chủ) — URL tự bịa chỉ xem được như ?nhu=.
+    if (q.get('thayvao') === '1' && q.get('nhu') && window.__thayVao) {
+      var dsTv = moiNoiTheoMa(dl, q.get('nhu'));
+      var tv = noiKhop(dsTv, q.get('lop')) || dsTv[0];
+      if (tv) return { lop: tv.lop.maLop, ten: tv.em.ten, ma: chuanMa(tv.em.ma), thayVao: true };
+    }
     var nhu = q.get('nhu');
     if (nhu) {
       // `?nhu=` có thể kèm `?lop=` để thầy xem em đó Ở ĐÚNG NƠI nào (em ở 2 nơi).
@@ -954,6 +961,7 @@
   // tính của mình (`gv=1&lop=`). Dùng CHUNG ở lop.html/bai.html/bai-sp.html —
   // đừng viết riêng từng nơi, dễ quên cập nhật một chỗ (bài học cũ của app này).
   function giuXemNhuQuery(em, maHs, maLop) {
+    if (em && em.thayVao) return 'nhu=' + encodeURIComponent(maHs || em.ma) + '&lop=' + encodeURIComponent(em.lop || maLop || '') + '&thayvao=1';
     if (!em || !em.xemNhu) return '';
     if (em.vaiTro === 'gv') return 'gv=1&lop=' + encodeURIComponent(maLop || '');
     return 'nhu=' + encodeURIComponent(maHs || '');
@@ -2131,6 +2139,29 @@
         if (x && x.id != null) theoTen[avKhongDau(x.ten)] = String(x.id);
       });
       var chanDb = avChanDacBiet(dsDb);
+      // ⭐⭐ v1.171.3 (28/09/2026) — MÃ SỐ PHẢI KHỚP TÊN mới được dùng. Kho ảnh từng được app myLesson đẩy theo
+      // `id` CỤC BỘ của máy đang chạy myStudent (mỗi máy đánh số riêng), còn `lop.json` mang mã số WEB ⇒ 11:39
+      // 28/9 NỀN TẢNG K9 lệch cả 21 em, 17 em hiện mặt bạn khác (DIỆU CHI #218 = ảnh MẠC MINH KHANG); NNTNG4
+      // CÔNG THÀNH ↔ MINH ĐỨC; A1C TIẾN DŨNG = TRANG ANH. Kho luôn ghi kèm tên (`t`) ⇒ tên kho lệch tên em thì bỏ
+      // mã số, dò theo tên: TRÙNG HẲN trước, rồi luật đuôi — cả hai CHỈ nhận khi đúng MỘT ảnh khớp (thà thiếu ảnh
+      // còn hơn gắn nhầm mặt, như `avTenDayDu`). Bản cũ dò tên lấy ảnh khớp ĐẦU TIÊN.
+      var tenCuTheoTen = {};
+      (dsEm || []).forEach(function (x) {
+        if (x && x.ten) tenCuTheoTen[avKhongDau(x.ten)] = (x.tenCu || []).map(function (c) { return avKhongDau(c); });
+      });
+      var chuan = function (s) { return avKhongDau(s).replace(/\s+/g, ' ').trim(); };
+      function timAnh(ten) {
+        var id = theoTen[avKhongDau(ten)];
+        if (id && em[id]) {
+          var tk = em[id].t;
+          if (!tk || avTenKhop(tk, ten) || (tenCuTheoTen[avKhongDau(ten)] || []).indexOf(avKhongDau(tk)) >= 0) return id;
+        }
+        var x = chuan(ten), bang = ids.filter(function (k) { return chuan(em[k].t) === x; });
+        if (bang.length === 1) return bang[0];
+        if (bang.length > 1) return null;
+        var long = ids.filter(function (k) { return avTenKhop(em[k].t, ten); });
+        return long.length === 1 ? long[0] : null;
+      }
 
       var o = document.querySelectorAll('[data-av-em]'), de = 0;
       for (var i = 0; i < o.length; i++) {
@@ -2138,13 +2169,7 @@
         if (avSlugLop(el.getAttribute('data-av-lop')) !== avSlugLop(lopGoc)) continue;
         var ten = el.getAttribute('data-av-em');
         if (chanDb[avKhongDau(ten).replace(/\s+/g, ' ').trim()]) continue;
-        var id = theoTen[avKhongDau(ten)];
-        if (!(id && em[id])) {                // không có mã số → dò theo tên
-          id = null;
-          for (var k = 0; k < ids.length; k++) {
-            if (avTenKhop(em[ids[k]].t, ten)) { id = ids[k]; break; }
-          }
-        }
+        var id = timAnh(ten);
         if (!(id && em[id])) continue;
 
         // v1.58.0 — ô trên thanh đội (`av-thanh`) từng vẽ <img> không mang lớp `av-anh`:
@@ -2169,13 +2194,7 @@
         var q = AV_BONG[b];
         if (avSlugLop(q.lop) !== avSlugLop(lopGoc)) continue;
         if (chanDb[avKhongDau(q.ten).replace(/\s+/g, ' ').trim()]) continue;
-        var qid = theoTen[avKhongDau(q.ten)];
-        if (!(qid && em[qid])) {
-          qid = null;
-          for (var m = 0; m < ids.length; m++) {
-            if (avTenKhop(em[ids[m]].t, q.ten)) { qid = ids[m]; break; }
-          }
-        }
+        var qid = timAnh(q.ten);
         if (qid && em[qid]) {
           var mb = 'data:image/jpeg;base64,' + em[qid].a;
           if (q.im.src !== mb) { q.im.src = mb; de++; }
@@ -3123,18 +3142,26 @@
       trang: { mapValue: { fields: trang } }, luc: { integerValue: String(Math.round(+d.luc || Date.now())) } } };
   }
   // Ghi ĐÈ trọn tài liệu (7 trường, đúng hasOnly). Trả Promise<true|false>.
+  // ⭐ v1.161.0 (27/09/2026, sau tấn công Tr0ngX) — luật đòi ID token ĐÚNG em (tools/dang-luat-tien-do.js):
+  // trước đó ai cũng ghi đè được bài nộp của em khác. Không có vé ⇒ gửi vẫn bị luật chặn (trả false như lỗi mạng).
+  function tieuDeEm(kieu) {
+    return (window.NWP && window.NWP.tieuDe) ? window.NWP.tieuDe(kieu)['catch'](function () { return {}; }) : Promise.resolve({});
+  }
   function nopGhi(d) {
     var id = nopId(d.lop, d.bai, d.o, d.ma);
     var u = nopUrlFs(id);
     if (!u) return Promise.resolve(false);
-    return fetch(u, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(nopRaFs(d)) })
-      .then(function (r) { return r.ok; })['catch'](function () { return false; });
+    return tieuDeEm().then(function (h) {
+      return fetch(u, { method: 'PATCH', headers: Object.assign({ 'Content-Type': 'application/json' }, h), body: JSON.stringify(nopRaFs(d)) });
+    }).then(function (r) { return r.ok; })['catch'](function () { return false; });
   }
 
   // Đẩy MỘT blob JPEG lên Storage — trả URL CÓ TOKEN (đọc được dù luật đóng), hoặc '' khi hỏng.
   function nopDayBlob(ten, blob) {
     var u = 'https://firebasestorage.googleapis.com/v0/b/' + NOP_BUCKET + '/o?uploadType=media&name=' + encodeURIComponent(ten);
-    return fetch(u, { method: 'POST', headers: { 'Content-Type': 'image/jpeg' }, body: blob })
+    return tieuDeEm('storage').then(function (h) {       // v1.161.0 — Storage REST nhận "Firebase <ID token>"
+      return fetch(u, { method: 'POST', headers: Object.assign({ 'Content-Type': 'image/jpeg' }, h), body: blob });
+    })
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (j) {
         var tk = String((j && j.downloadTokens) || '').split(',')[0];

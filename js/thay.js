@@ -37,8 +37,10 @@
         await AWChat.kho();                       // bảo đảm app Firebase đã có
         var appMod = await import(SDK + '/firebase-app.js');
         var au = await import(SDK + '/firebase-auth.js');
+        // ⭐ v1.168.0 — tab "đăng nhập thay em" (js/thay-vao.js): chờ Auth phiên-trong-tab, KHÔNG setPersistence(local).
+        if (window.__thayVao) { try { await window.__thayVao.san; } catch (e) {} }
         var a = au.getAuth(appMod.getApp());
-        try { await au.setPersistence(a, au.browserLocalPersistence); } catch (e) {}
+        if (!window.__thayVao) { try { await au.setPersistence(a, au.browserLocalPersistence); } catch (e) {} }
         return { au: au, a: a };
       })();
     }
@@ -94,7 +96,7 @@
   }
 
   // Lời nhắc dùng chung khi kho từ chối vì thiếu phiên.
-  var CAN_DANG_NHAP = 'Cần phiên của thầy mới ghi được — bấm nút 🔐 Đăng nhập ở cột trái (hoặc mở từ app myLesson).';
+  var CAN_DANG_NHAP = 'Cần phiên của thầy mới ghi được — bấm ☰ (góc phải trên) → 🔐 Đăng nhập Google (hoặc mở từ app myLesson).';
 
   // ---- cầu từ app myLesson (webview) ----
   // App gọi `window.__thayToken(token)` sau dom-ready; nếu app tiêm sẵn

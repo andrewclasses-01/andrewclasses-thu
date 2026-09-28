@@ -39,9 +39,12 @@
         var appMod = await import(SDK + '/firebase-app.js');
         var au = await import(SDK + '/firebase-auth.js');
         var fs = await import(SDK + '/firebase-firestore.js');
+        // ⭐ v1.168.0 — tab "thầy đăng nhập thay em" (js/thay-vao.js): Auth đã khởi động với phiên CHỈ TRONG TAB ⇒ chờ nó,
+        // và TUYỆT ĐỐI không setPersistence(local) (chép phiên em vào IndexedDB ⇒ tab dashboard của thầy thành em).
+        if (window.__thayVao) { try { await window.__thayVao.san; } catch (e) { } }
         var app = (appMod.getApps && appMod.getApps().length) ? appMod.getApp() : appMod.initializeApp(CAU_HINH);
         var auth = au.getAuth(app);
-        try { await au.setPersistence(auth, au.browserLocalPersistence); } catch (e) { }
+        if (!window.__thayVao) { try { await au.setPersistence(auth, au.browserLocalPersistence); } catch (e) { } }
         return { au: au, auth: auth, fs: fs, db: fs.getFirestore(app) };
       })();
       _p['catch'](function () { _p = null; });   // mạng lỗi lúc tải SDK ⇒ lần sau thử lại
@@ -90,6 +93,7 @@
   // Đặt mật khẩu riêng. Giờ đổi thật lấy ở MÁY CHỦ Auth (passwordUpdatedAt — công cụ --trang-thai đọc),
   // cờ phaiDoiMk chỉ để web biết khỏi hỏi lại.
   async function datMatKhau(mkMoi) {
+    if (window.__thayVao) throw new Error('thay-vao');   // v1.168.0 — thầy đăng nhập thay KHÔNG được đổi mật khẩu của em
     var f = await fb();
     var u = f.auth.currentUser;
     if (!u) throw new Error('chua-dang-nhap');
@@ -108,6 +112,7 @@
   async function thoat() {
     var f = await fb();
     if (laHocSinh(f.auth.currentUser)) await f.au.signOut(f.auth);
+    if (window.__thayVao) window.__thayVao.xoa();        // v1.168.0 — thoát luôn chế độ đăng nhập thay
   }
 
   // ---------- CANH CỬA trang lớp/bài ----------
@@ -118,8 +123,17 @@
   var KHOA_DA_GAC = 'mylesson_gac_ok';
   function gac(ma) {
     if (!ma) return;
+    // ⭐ v1.168.0 — tab "thầy đăng nhập thay em": KHÔNG đá về màn đăng nhập, KHÔNG bắt đổi mật khẩu; thiếu phiên ⇒ chỉ báo (trang vẫn xem được).
+    if (window.__thayVao) {
+      fb().then(function () { return phienCuaMa(ma); }).then(function (u) {
+        if (u) lamMoiVe(false);
+        else window.__thayVao.baoLoi('Chưa đăng nhập thay được em này — trang này CHỈ XEM. Mở lại từ dashboard nếu cần.');
+      })['catch'](function (e) { console.warn('[phien] thay-vao', e); });
+      return;
+    }
     fb().then(function () { return phienCuaMa(ma); }).then(function (u) {
       if (!u) { veDangNhap(); return; }
+      lamMoiVe(false);    // v1.161.0 — giữ sẵn vé cho các đường ghi REST (tieuDeNgay)
       // hồ sơ: đọc 1 lần mỗi tab (sessionStorage) — đỡ tốn lượt đọc Firestore mỗi lần chuyển trang
       var daGac = '';
       try { daGac = sessionStorage.getItem(KHOA_DA_GAC) || ''; } catch (e) { }
@@ -134,6 +148,38 @@
     try { sessionStorage.removeItem(KHOA_DA_GAC); } catch (e) { }
     // KHÔNG gọi AWC.thoat(): index.html cần đọc lại mã đã nhớ để điền sẵn ô ID.
     location.replace('index.html');
+  }
+
+  // ---------- ⭐⭐ v1.161.0 — TIÊU ĐỀ DANH TÍNH cho các đường ghi REST của chính trang này ----------
+  // Luật (tools/dang-luat-tien-do.js): bài nộp ảnh (Storage nopBai + lessonNop), tiến độ video/audio, tích nộp Speaking
+  // CHỈ ghi được bằng ID token của đúng em. Các đường đó là REST (có đường keepalive lúc đóng tab — KHÔNG chờ được Promise)
+  // ⇒ giữ sẵn vé trong bộ nhớ trang (`_veHs`), làm mới mỗi 10 phút + khi còn < 2 phút.
+  //   tieuDe(kieu)     : Promise<{Authorization}> (lấy vé mới nếu cần) — dùng khi được phép chờ
+  //   tieuDeNgay(kieu) : {Authorization} hoặc {} NGAY (đồng bộ) — dùng cho keepalive; {} ⇒ đừng gửi, để lần sau
+  //   kieu 'storage' ⇒ "Firebase <token>" (Storage REST), còn lại "Bearer <token>" (Firestore REST).
+  var _veHs = null;          // { token, het }
+  var _henVe = null;
+  function lamMoiVe(epMoi) {
+    return userHienTai().then(function (u) {
+      if (!laHocSinh(u)) { _veHs = null; return null; }
+      return u.getIdTokenResult(!!epMoi).then(function (r) {
+        _veHs = { token: r.token, het: Date.parse(r.expirationTime) };
+        if (!_henVe) _henVe = setInterval(function () { lamMoiVe(false); }, 10 * 60 * 1000);
+        return _veHs.token;
+      });
+    })['catch'](function () { return null; });
+  }
+  function dauTieuDe(kieu, token) {
+    return token ? { Authorization: (kieu === 'storage' ? 'Firebase ' : 'Bearer ') + token } : {};
+  }
+  function tieuDeNgay(kieu) {
+    if (_veHs && _veHs.het - Date.now() > 120000) return dauTieuDe(kieu, _veHs.token);
+    lamMoiVe(!!_veHs);       // hết/sắp hết ⇒ xin vé mới cho lượt sau
+    return {};
+  }
+  function tieuDe(kieu) {
+    if (_veHs && _veHs.het - Date.now() > 120000) return Promise.resolve(dauTieuDe(kieu, _veHs.token));
+    return lamMoiVe(!!_veHs).then(function (t) { return dauTieuDe(kieu, t); });
   }
 
   // ---------- ⭐⭐ v1.159.0 — CẤP VÉ cho khung AWord nhúng (AWord Đợt 410) ----------
@@ -174,5 +220,6 @@
   }
 
   window.NWP = { fb: fb, emailTuMa: emailTuMa, userHienTai: userHienTai, phienCuaMa: phienCuaMa,
-    dangNhap: dangNhap, hoSo: hoSo, datMatKhau: datMatKhau, thoat: thoat, gac: gac, chuLoi: chuLoi };
+    dangNhap: dangNhap, hoSo: hoSo, datMatKhau: datMatKhau, thoat: thoat, gac: gac, chuLoi: chuLoi,
+    tieuDe: tieuDe, tieuDeNgay: tieuDeNgay };
 })();
