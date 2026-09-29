@@ -114,11 +114,10 @@
   TEN.quanLy = 'QUẢN LÝ';
   var tabs = TABS.map(function (t) { return laThay && t.ma === 'baiTap' ? { ma: 'quanLy', chu: 'QUẢN LÝ' } : t; });
 
-  // ⭐ TRANG THỬ 28/09/2026 (thầy "mở hết một lượt"): 5 icon + avatar dẫn sang các trang myNetwork chép vào nw/
-  // (đăng nhập Firebase dùng chung với trang này). Chuông không có trang riêng ⇒ mở Bảng tin kèm hộp thông báo.
-  // ⛔ Chỉ trang thử — đưa sang andrewclasses.com thật theo từng chặng thầy "ok".
-  var TRANG_NW = { khamPha: 'nw/khampha.html', tinNhan: 'nw/tinnhan.html', bangTin: 'nw/bangtin.html',
-    chuong: 'nw/bangtin.html?tb=1', timKiem: 'nw/timkiem.html', caNhan: 'nw/canhan.html' };
+  // ⭐ 29/09/2026 — trang THỬ (window.AC_THU, config.js): 5 icon + avatar mở các trang myNetwork trong nw/ (đăng nhập Firebase dùng
+  // chung). Chuông không có trang riêng ⇒ Bảng tin kèm hộp thông báo. Trang THẬT: TRANG_NW rỗng ⇒ hộp "sắp ra mắt" như cũ.
+  var TRANG_NW = window.AC_THU ? { khamPha: 'nw/khampha.html', tinNhan: 'nw/tinnhan.html', bangTin: 'nw/bangtin.html',
+    chuong: 'nw/bangtin.html?tb=1', timKiem: 'nw/timkiem.html', caNhan: 'nw/canhan.html' } : {};
   $('.nwb-tabs', dau).innerHTML = tabs.map(function (t, i) {
     var dauTien = i === 0;
     return '<a class="nwb-tab' + (dauTien ? ' chon' : '') + '" data-ma="' + t.ma + '" data-nh="' + t.chu + '" href="' +
@@ -137,9 +136,9 @@
     moSap(ma);
   });
 
-  // Avatar = TRANG CÁ NHÂN (trang thử: nw/canhan.html). Gán đè onclick cũ của trang (mở sidebar).
+  // Avatar = TRANG CÁ NHÂN (trang thử: nw/canhan.html; trang thật: chưa mở). Gán đè onclick cũ của trang (mở sidebar).
   var av = $('#nutMenu') || $('#nwbAv');
-  if (av) { av.title = 'Trang cá nhân'; av.onclick = function () { location.href = TRANG_NW.caNhan; }; }
+  if (av) { av.title = 'Trang cá nhân'; av.onclick = function () { if (TRANG_NW.caNhan) location.href = TRANG_NW.caNhan; else moSap('caNhan'); }; }
 
   // ☰ học sinh = sidebar cũ (ví sao + menu), mở lại luôn thấy MENU CHÍNH như nút avatar cũ.
   // ☰ thầy mang id="moSb" ⇒ dashboard tự gắn moSb() như nút "Andrew Classes" cũ, không cần gắn ở đây.
@@ -211,8 +210,8 @@
     if (ma === 'baoMat') { if (window.qlMoBaoMat) window.qlMoBaoMat(); return; }
     if (ma === 'sinhNhat') { if (window.qlMoSinhNhat) window.qlMoSinhNhat(); return; }
     if (ma === 'top' || ma === 'qua' || ma === 'kho' || ma === 'kholuutru') { if (window.qlMoMuc) window.qlMoMuc(ma); return; }
-    // Trang thử 28/09: 7 mục Network ⇒ trang quản lý myNetwork (nw/quanly.html?muc=…, cùng mã mục)
-    if (m_NW[ma]) { location.href = 'nw/quanly.html?muc=' + ma; return; }
+    // Trang thử: mục Network ⇒ trang quản lý myNetwork (nw/quanly.html?muc=…, cùng mã mục)
+    if (window.AC_THU && m_NW[ma]) { location.href = 'nw/quanly.html?muc=' + ma; return; }
     moSap(ma);
   });
 })();

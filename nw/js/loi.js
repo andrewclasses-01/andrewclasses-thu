@@ -17,6 +17,16 @@
      Mật khẩu ban đầu = chính mã đăng nhập (đúng mức tin cậy myLesson đang có) và cờ
      `phaiDoiMk:true` bắt em tự đặt mật khẩu riêng ngay lần đầu vào.
    ============================================================ */
+// ⭐ 29/09/2026 (thầy chốt) — CỔNG: các trang myNetwork (nw/) CHỈ MỞ ở TRANG THỬ (andrewclasses-01.github.io, máy cổng 8825) cho tới
+// khi thầy mở cho học sinh. Trang thật andrewclasses.com cùng một bộ code — ai gõ thẳng nw/… thì về trang chủ.
+// (Cùng điều kiện với config.js `AC_THU` gốc; trang nw/ không nạp config.js gốc.)
+// Bàn thử dữ liệu giả `?thu=1` / `?thu=thay` trên máy (NW.laBanThu) vẫn mở.
+if (!(/^andrewclasses-01\.github\.io$/.test(location.hostname) || location.port === '8825' ||
+      (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /[?&]thu=(1|thay)(&|$)/.test(location.search)))) {
+  location.replace('../index.html');
+  throw new Error('myNetwork chưa mở ở trang này');
+}
+
 (function () {
   'use strict';
 
