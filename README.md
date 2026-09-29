@@ -1,23 +1,16 @@
-# andrewclasses-thu — TRANG THỬ của andrewclasses.com (giao diện myNetwork)
+# andrewclasses-thu — TRANG THỬ của andrewclasses.com
 
 ⚠ Đây là trang THỬ, KHÔNG phải trang thật. Học sinh dùng https://andrewclasses.com (kho myLesson `web`).
 
-**Quy trình (thầy chốt 24/09/2026):** build các trang myNetwork ở đây, chạy live để thầy thử → thầy chốt "ok" từng chặng → mới đưa chặng đó sang kho `web` thật.
-Hồ sơ đầy đủ: `E:\LAP TRINH APP\myNetwork\BAN GIAO.md` (khối 🚀🚀 24/09).
+## ⭐ Từ 29/09/2026 (web v1.178.0): trang thử = BẢN CHÉP Y HỆT trang thật
+Thầy chốt: hai trang giống hệt nhau, sửa bên này bên kia y hệt. **Chỉ khác**: trang thật bấm tab myNetwork (bảng tin, tin nhắn,
+khám phá, cá nhân…) hiện hộp "ra mắt sau"; trang thử mở luôn. Chỗ khác nằm TRONG code (`config.js` → `AC_THU` theo tên miền
+`andrewclasses-01.github.io`, máy cổng 8825) nên file hai bên giống hệt từng chữ.
 
-- Đang khớp trang thật **web v1.160.0** `e2d60f8` (đồng bộ 27/09 — gồm đăng nhập MẬT KHẨU v1.158.0 đã làm THẲNG trên thật khi bị tấn công,
-  bản thật là bản đầy đủ của chặng 1 ở đây; ⚠ khung AWord ở trang thử KHÔNG nhận vé (AWord chỉ tin andrewclasses.com) ⇒ nộp điểm ở đây nằm hộp chờ).
-- ⛔ KHÔNG chứa dữ liệu học sinh: `data/`, `assets/avatar/`, `tools/` bị .gitignore, KHÔNG có `CNAME`.
-  Mọi đường `data/…`, `assets/avatar/…` đã đổi sang `https://andrewclasses.com/…` bằng `thu/doi-duong-du-lieu.py`.
-- ⚠ Dùng CHUNG dữ liệu thật (Firestore `aword-70dae`): làm bài ở đây = ghi thật vào tên em đã đăng nhập.
-- Đồng bộ lại từ trang thật: `git archive origin/main` của kho `web` → bỏ `data/ assets/avatar/ tools/ CNAME README.md .gitignore` → chép đè vào đây →
-  `python thu\doi-duong-du-lieu.py` (phải báo 14/6/1/1) → thử cổng 8825 → push.
-
-## ⛔⛔ Luật chia vùng (thầy chốt tối 24/09/2026)
-- **Trang quản lý (`dashboard.html`) + tính năng trong đó**: thầy build THẲNG trên andrewclasses.com (kho `web` thật). Kho này CHỈ NHẬN qua đồng bộ bản vá —
-  ⛔ không sửa `dashboard.html` ở đây, ⛔ không bao giờ chép `dashboard.html` từ đây sang thật.
-- **Tính năng myNetwork ngoài trang quản lý**: build ở đây → thầy "ok" → đưa sang thật.
-- **File chung** (dashboard cũng nạp): `config.js`, `js/chung.js`, `js/chat.js`, `js/thay.js`, `js/nw-thanh.js`, `css/nw-thanh.css` — đưa sang thật chỉ gắn
-  ĐOẠN thay đổi lên bản thật mới nhất (không chép cả file), rồi thử lại cả dashboard. Commit sửa file chung ghi "(file chung)".
-- Trước khi build: kiểm kho `web` thật có bản mới ⇒ đồng bộ về đây trước. Chi tiết: `myNetwork\BAN GIAO.md` khối "LUẬT CHIA VÙNG".
-- ⭐ Ngoại lệ: mục NETWORK trong trang quản lý (chặng 7) vẫn build ở đây — viết FILE RIÊNG (`js/nw-quanly.js`…), `dashboard.html` chỉ thêm vài dòng móc; đưa sang thật = chép file riêng + gắn mấy dòng móc lên dashboard thật mới nhất (báo thầy trước).
+- ⛔ **KHÔNG sửa tay trong kho này.** Sửa ở kho `web` thật (trang `nw/` đã có cổng: trên andrewclasses.com tự về trang chủ), push,
+  rồi trong kho `web` chạy: `python tools/dong-bo-trang-thu.py` (xem trước) → `python tools/dong-bo-trang-thu.py --day` (chép + push).
+- Riêng của kho này (công cụ KHÔNG chép đè): `README.md`, `.gitignore`.
+- ⛔ KHÔNG chứa dữ liệu học sinh: `data/`, `assets/avatar/`, `tools/`, `CNAME` không chép sang (có lưới chặn). Trang thử đọc dữ liệu +
+  ảnh em từ `https://andrewclasses.com/` (`AC_GOC_DL`).
+- ⚠ Dùng CHUNG dữ liệu thật (Firestore `aword-70dae`): làm bài / đăng bài ở đây = ghi thật vào tài khoản đã đăng nhập.
+- ⚠ Khung AWord ở trang thử KHÔNG nhận vé (AWord chỉ tin andrewclasses.com) ⇒ nộp điểm ở đây nằm hộp chờ.
