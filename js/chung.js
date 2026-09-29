@@ -21,6 +21,50 @@
   var CFG = window.MYLESSON_CONFIG || {};
   var KHOA_EM = 'mylesson_hs';       // nhớ em đã đăng nhập, ngay trên máy em
 
+  // ---------- ⭐⭐ v1.174.0 (28/09/2026, thầy chốt) — GIỜ CHUẨN: KHÔNG TIN ĐỒNG HỒ MÁY EM ----------
+  // Ca thật: máy THANH PHƯƠNG (A1A) chạy CHẬM đúng 1 ngày 3 phút ⇒ bài em làm 28/9 lên dashboard thành 27/9, hạn
+  // nộp trên máy em còn dư một ngày. `gioNay()` = Date.now() + độ lệch đo bằng header `Date` của chính máy chủ web
+  // (HEAD cùng miền, chặn cache), mỗi lần mở trang đo một lần; lần đo trước cất localStorage `lech-dong-ho` để trang
+  // mở ra đã đúng ngay. Lệch < 2 phút coi như 0 (header chỉ chính xác tới giây) ⇒ máy đúng giờ chạy y như cũ.
+  // Dùng cho MỐC GIỜ THẬT: so hạn nộp · đếm ngược · buổi học · mốc ghi lên kho · ngày chấm công.
+  // ⛔ ĐỪNG dùng cho hạn sống bộ đệm hay đo thời lượng (hiệu hai mốc): lệch có thể được áp GIỮA chừng (lần đo đầu).
+  // ⛔ Bản CHÉP trong AWord: `core/gio-chuan.js` (cùng tên khoá localStorage `lech-dong-ho`, khác miền nên khác kho).
+  var LECH_NGUONG_MS = 2 * 60 * 1000, KHOA_LECH = 'lech-dong-ho';
+  var LECH = 0;
+  try {
+    var lechCat = Number(localStorage.getItem(KHOA_LECH));
+    if (isFinite(lechCat) && Math.abs(lechCat) >= LECH_NGUONG_MS) LECH = lechCat;
+  } catch (e) {}
+  function gioNay() { return Date.now() + LECH; }
+  var DUONG_DO_LECH = (function () {
+    try { return String((document.currentScript && document.currentScript.src) || '').split('?')[0]; } catch (e) { return ''; }
+  })() || (location.origin + '/js/chung.js');
+  var _doLech = null;
+  function doLechDongHo() {
+    if (_doLech) return _doLech;
+    if (!window.fetch || !/^https?:/.test(location.protocol)) return Promise.resolve(LECH);
+    var lan = 0;
+    function thu() {
+      var t0 = Date.now();
+      return fetch(DUONG_DO_LECH + '?dh=' + t0, { method: 'HEAD', cache: 'no-store' }).then(function (r) {
+        var t1 = Date.now(), may = Date.parse(r.headers.get('date') || '');
+        if (!isFinite(may) || t1 - t0 > 10000) throw new Error('khong do duoc');
+        var d = may + 500 - (t0 + t1) / 2;   // header cắt xuống giây ⇒ lấy giữa giây; so với giữa lượt đi-về
+        LECH = Math.abs(d) >= LECH_NGUONG_MS ? Math.round(d) : 0;
+        try { localStorage.setItem(KHOA_LECH, String(LECH)); } catch (e) {}
+        return LECH;
+      }).catch(function () {
+        if (++lan >= 3) { _doLech = null; return LECH; }
+        return new Promise(function (res) { setTimeout(res, 1500 * lan); }).then(thu);
+      });
+    }
+    _doLech = thu();
+    return _doLech;
+  }
+  doLechDongHo();
+  try { window.addEventListener('online', function () { doLechDongHo(); }); } catch (e) {}
+  window.gioChuan = gioNay;   // cho file rời (chat.js, nw-phien.js, nw-thanh.js…) không đi qua AWC
+
   // ---------- tiện ích chữ ----------
 
   function chuAnToan(s) {
@@ -555,7 +599,7 @@
     if (tt === 'an' || tt === 'xoa' || tt === 'xvv') return false;
     if (tt === 'khoa') return true;
     var moc = mocHan(b);
-    return moc == null || moc > Date.now();
+    return moc == null || moc > gioNay();
   }
 
   // Hạn ĐANG CÓ HIỆU LỰC của một thẻ: hạn sửa trước, rồi mới tới `bai.json`.
@@ -1035,7 +1079,7 @@
   var TUOI_TOI_DA_MS = 10 * 60 * 1000;
   // ⭐ v1.147.0 (25/09/2026, GỘP PRACTICE + SUBMIT) — khoá đệm `awc_diem2_` → `awc_diem3_`: mỗi lượt nay
   // mang thêm `dd` (lượt DỞ DANG) + `pt`, bản cũ trong localStorage không có ⇒ mỗi máy đọc lại MỘT lần/act.
-  var KHOA_DIEM2 = 'awc_diem3_';
+  var KHOA_DIEM2 = 'awc_diem4_';   // v1.175.0 — 3→4: bản nhớ cũ thiếu `sv` (giờ máy chủ) từng lượt
 
   // ⭐ v1.147.0 — `orderBy=createdAt desc`: đọc lượt MỚI NHẤT trước. Trước đây liệt kê theo mã tài liệu
   // (`hw<mốc>…` = CŨ trước) nên khi chạm phanh số trang, lượt bị bỏ lại là lượt MỚI NHẤT — đúng lượt cần
@@ -1113,6 +1157,9 @@
                 // `createdAt` = lúc nộp (mốc mili giây, AWord ghi bằng Date.now()).
                 // Dùng làm "nộp lúc" trong bảng cả lớp; thiếu thì coi như 0.
                 luc: soF(f.createdAt),
+                // ⭐ v1.175.0 — giờ MÁY CHỦ lúc tài liệu được tạo (Firestore tự ghi, máy em không sửa được).
+                // Dashboard dùng nó suy độ lệch đồng hồ máy em cho dữ liệu cũ (xem `chinhGioMay` bên dashboard).
+                sv: Date.parse(doc.createTime || '') || 0,
                 // ⭐ v1.147.0 — lượt DỞ DANG (AWord Đợt 383: em bấm Start again / tải lại trang / đóng tab
                 // giữa ván). Điểm thật nhưng mẫu số KHÔNG chắc ⇒ không làm mẫu chuẩn, không tính "nộp là xong".
                 dd: !!(f.doDang && f.doDang.booleanValue),
@@ -1205,7 +1252,7 @@
       var cu = theo[k];
       // ⭐ v1.131.0 — giữ MỌI lượt (`luot`) để hộp quản lý cộng tổng thời gian nộp
       // (dashboard tab THỜI LƯỢNG); phần gộp "lượt tốt nhất" bên dưới không đổi.
-      var lu = { id: r.id || '', ms: r.ms || 0, luc: r.luc || 0, diem: r.diem, tong: r.tong, dd: !!r.dd, pt: pt };
+      var lu = { id: r.id || '', ms: r.ms || 0, luc: r.luc || 0, sv: r.sv || 0, diem: r.diem, tong: r.tong, dd: !!r.dd, pt: pt };
       var g = Math.round((r.ms || 0) / 1000);
       // ⭐ v1.147.0 (thầy chốt 24/09) — "NỘP LÚC" = lượt ĐẦU TIÊN em ĐẠT điểm tối đa (`lucDat`); chưa đạt thì
       // lấy lúc của lượt TỐT NHẤT (`lucTot`). Trước đây là lượt nộp đầu tiên bất kỳ — nay lượt dở cũng nộp,
@@ -1568,7 +1615,7 @@
   //         moHet: bỏ qua MỌI khoá thời gian/chờ cả lớp — v1.82.0, xem dưới }
   function xetChang(b, lay, caLop, opt) {
     var o = opt || {};
-    var now = o.now || Date.now();
+    var now = o.now || gioNay();
     var epMo = +o.moChang || 0;
     var cac = changCuaBai(b);
     var moTiep = true;          // chặng đang xét có được mở không
@@ -1759,6 +1806,18 @@
   //    `taoLuc`, tính tới CUỐI NGÀY hôm đó. Không có gì để suy thì trả null và
   //    ô hạn hiện "Chưa đặt hạn" — thà để trống còn hơn bịa một giờ.
   function mocHan(b) {
+    // 🐛 v1.172.0 (28/09/2026, ca thật B2-B STAGE 25.9) — BÀI STAGE: HẠN THẺ = HẠN CHẶNG CUỐI.
+    // `b.han` trong bai.json có thể LỆCH hạn chặng cuối (B2-B: `b.han` 14:00 · 28/9, act chặng 2 là
+    // 17:30 · 28/9) ⇒ qua 14:00 thẻ bị coi là HẾT HẠN ("bài gần nhất (đã hết hạn)") trong khi đồng hồ
+    // chặng vẫn đếm tới 17:30. Nay đọc thẳng `changCuaBai` — nơi đã gộp sẵn hạn act + hạn riêng chặng
+    // (`hanChang`) + hạn riêng cả thẻ (`HAN_SUA` đè chặng cuối) — để thẻ và đồng hồ luôn cùng MỘT mốc.
+    // Bài STAGE không có chặng nào mang hạn thì đi lối cũ bên dưới.
+    if (b && b.id && laBaiStage(b)) {
+      var cc = changCuaBai(b);
+      for (var ci = cc.length - 1; ci >= 0; ci--) {
+        if (cc[ci].so && cc[ci].moc != null) return cc[ci].moc;
+      }
+    }
     // ⭐ v1.20.0 — qua `hanCua()`: hạn sửa ở dashboard đứng trước `b.han` của
     // `bai.json`. Chưa sửa thì `hanCua()` chính là `b.han` — y hệt lối cũ.
     var hh = hanCua(b);
@@ -1985,8 +2044,11 @@
     for (var id in f) {
       var g = (f[id].mapValue && f[id].mapValue.fields) || {};
       var a = g.a && g.a.stringValue;
-      if (!a) continue;
-      em[id] = { t: (g.t && g.t.stringValue) || '', a: a };
+      // v1.177.0 — BIA XOÁ (`xoa`): thầy xoá ảnh trên dashboard ⇒ giữ mục để `deAvatarKho` GỠ ảnh đang hiện
+      // (kể cả ảnh lớp nền file tĩnh cũ), thay vì bỏ qua như em chưa từng có ảnh.
+      var xoa = !!(g.xoa && (g.xoa.integerValue || g.xoa.booleanValue || g.xoa.doubleValue));
+      if (!a && !xoa) continue;
+      em[id] = xoa && !a ? { t: (g.t && g.t.stringValue) || '', a: '', xoa: 1 } : { t: (g.t && g.t.stringValue) || '', a: a };
     }
     return { em: em, luc: avMoc(j) };
   }
@@ -2171,6 +2233,11 @@
         if (chanDb[avKhongDau(ten).replace(/\s+/g, ' ').trim()]) continue;
         var id = timAnh(ten);
         if (!(id && em[id])) continue;
+        if (em[id].xoa) {                       // v1.177.0 — bia xoá: gỡ mọi ảnh đang hiện, về chữ tắt
+          var cu = el.querySelectorAll('img');
+          for (var c = 0; c < cu.length; c++) { cu[c].remove(); de++; }
+          continue;
+        }
 
         // v1.58.0 — ô trên thanh đội (`av-thanh`) từng vẽ <img> không mang lớp `av-anh`:
         // bản trước không thấy nên chèn thêm một <img> thứ hai chồng lên. Nay nhận cả hai.
@@ -2195,7 +2262,7 @@
         if (avSlugLop(q.lop) !== avSlugLop(lopGoc)) continue;
         if (chanDb[avKhongDau(q.ten).replace(/\s+/g, ' ').trim()]) continue;
         var qid = timAnh(q.ten);
-        if (qid && em[qid]) {
+        if (qid && em[qid] && !em[qid].xoa) {
           var mb = 'data:image/jpeg;base64,' + em[qid].a;
           if (q.im.src !== mb) { q.im.src = mb; de++; }
         }
@@ -2214,6 +2281,12 @@
   //    ĐÚNG MỘT LẦN — dựng thêm mỗi lần đổi lớp thì mỗi lượt vẽ chạy N lượt đè chồng nhau.
   // `dsDb` (v1.94.6) — danh sách HS ĐẶC BIỆT của lớp (`l.hsDb`), xem chú thích
   // ⭐⭐ ở `deAvatarKho`.
+  // v1.177.0 — thầy vừa đổi/xoá ảnh trên dashboard ⇒ quên bản đệm của lớp đó, lượt đè sau tải lại kho ngay.
+  function quenAvatarKho(lopGoc) {
+    var slug = avSlugLop(lopGoc);
+    delete AV_RAM[slug]; delete AV_HONG[slug];
+    try { localStorage.removeItem(KHOA_AV + ':' + slug); } catch (e) {}
+  }
   var avLop = '', avDs = [], avDb = [], avTai = null, avHen = null;
   function batAvatarKho(lopGoc, dsEm, dsDb) {
     if (!lopGoc) return;
@@ -2257,7 +2330,7 @@
   // chậm vài phút là mốc "đã xem" thấp hơn tin vừa đọc ⇒ chấm đỏ không chịu
   // tắt. Luôn truyền vào MỐC CỦA TIN cuối cùng em đã thấy.
   function danhDauDaXem(lop, ma, luc) {
-    var m = Number(luc) || Date.now();
+    var m = Number(luc) || gioNay();
     try { localStorage.setItem(khoaXemTin(lop, ma), String(m)); } catch (e) {}
   }
 
@@ -2415,7 +2488,9 @@
             ra[ma] = {
               thu: String((f.days && f.days.stringValue) || ''),
               gio: String((f.start_time && f.start_time.stringValue) || ''),
-              tamNghi: !!Number((f.on_break && f.on_break.integerValue) || 0)
+              tamNghi: !!Number((f.on_break && f.on_break.integerValue) || 0),
+              // ⭐ v1.173.0 — lịch tuần TỪNG BUỔI (lớp hai khung giờ). Kho ghi thứ kiểu Python.
+              lich: chuanLichTuan((f.lich_tuan && f.lich_tuan.stringValue) || '', true)
             };
           }
           try { sessionStorage.setItem(KHOA_LICH,
@@ -2470,11 +2545,62 @@
     return { h: h, p: p };
   }
 
-  function buoiTiepTheo(thuChuoi, gio, tuMoc) {
+  // ⭐⭐ v1.173.0 (thầy chốt 28/09/2026) — LỚP HỌC HAI KHUNG GIỜ. Trước đây mỗi lớp chỉ có MỘT
+  // giờ vào/tan cho mọi thứ (`thu`/`gio`/`tan` = buổi ĐẦU của lịch) ⇒ A1-A học T2 19:45 + T5 17:45
+  // thì buổi T5 bị tính 19:45 ⇒ "LỚP ĐANG HỌC" / "buổi tiếp theo" sai giờ. Nay đọc lịch tuần
+  // TỪNG BUỔI (`lich_tuan` dashboard/myStudent sửa): mỗi phần tử một ĐỢT có hiệu lực từ `tu`.
+  //   `raw` = mảng hoặc chuỗi JSON `[{tu, buoi:[{thu, vao:"17h45", tan:"19h15"}]}]`.
+  //   ⛔ `laPython`: kho `mystudentRosterClasses` đếm thứ 0=T2 … 6=CN; `lop.json` (hàm máy chủ
+  //   `dung-lop.js` đã đổi sẵn) đếm theo getDay 0=CN. Sai cờ là lệch MỘT NGÀY không gì báo.
+  // Trả mảng đợt đã sắp theo `tu`, giờ đã đọc thành {h,p}; hỏng/rỗng ⇒ [].
+  function chuanLichTuan(raw, laPython) {
+    var ds = raw;
+    if (typeof raw === 'string') { try { ds = raw ? JSON.parse(raw) : []; } catch (e) { ds = []; } }
+    if (!Array.isArray(ds)) return [];
+    var ra = [];
+    ds.forEach(function (d) {
+      var buoi = [];
+      ((d && d.buoi) || []).forEach(function (b) {
+        var t = Number(b && b.thu), vao = gioPhut(b && b.vao), tan = gioPhut(b && b.tan);
+        if (!(t >= 0 && t <= 6) || Math.floor(t) !== t || !vao) return;
+        buoi.push({ thu: laPython ? (t + 1) % 7 : t, vao: vao, tan: tan });
+      });
+      if (buoi.length) ra.push({ tu: String((d && d.tu) || '').slice(0, 10), buoi: buoi });
+    });
+    return ra.sort(function (a, b) { return a.tu < b.tu ? -1 : a.tu > b.tu ? 1 : 0; });
+  }
+  // Các buổi rơi đúng ngày `d` theo ĐỢT có hiệu lực ngày đó (đợt `tu` ≤ ngày, muộn nhất).
+  function buoiTrongNgayLich(dots, d) {
+    if (!dots || !dots.length) return [];
+    var hai = function (n) { return (n < 10 ? '0' : '') + n; };
+    var iso = d.getFullYear() + '-' + hai(d.getMonth() + 1) + '-' + hai(d.getDate());
+    var chon = dots[0];
+    dots.forEach(function (x) { if (x.tu <= iso) chon = x; });
+    return chon.buoi.filter(function (b) { return b.thu === d.getDay(); });
+  }
+
+  // ⭐ v1.173.0 — `lich` (tuỳ chọn, mảng đợt đã `chuanLichTuan`): có thì mỗi buổi một giờ vào;
+  // không có thì đúng lối cũ `thuChuoi` + `gio`.
+  function buoiTiepTheo(thuChuoi, gio, tuMoc, lich) {
+    if (lich && lich.length) {
+      var goc0 = new Date(tuMoc == null ? gioNay() : tuMoc);
+      var tot = null;
+      for (var k = 0; k < 8 && !tot; k++) {
+        var ngay = new Date(goc0.getFullYear(), goc0.getMonth(), goc0.getDate() + k);
+        buoiTrongNgayLich(lich, ngay).forEach(function (b) {
+          var t = new Date(ngay.getFullYear(), ngay.getMonth(), ngay.getDate(), b.vao.h, b.vao.p, 0, 0);
+          if (t.getTime() > goc0.getTime() && (!tot || t < tot)) tot = t;
+        });
+      }
+      if (!tot) return '';
+      var h2 = function (n) { return (n < 10 ? '0' : '') + n; };
+      return tot.getFullYear() + '-' + h2(tot.getMonth() + 1) + '-' + h2(tot.getDate())
+           + 'T' + h2(tot.getHours()) + ':' + h2(tot.getMinutes());
+    }
     var thu = thuTuChuoi(thuChuoi);
     var m = gioPhut(gio);
     if (!thu.length || !m) return '';
-    var goc = new Date(tuMoc == null ? Date.now() : tuMoc);
+    var goc = new Date(tuMoc == null ? gioNay() : tuMoc);
     for (var i = 0; i < 8; i++) {
       var d = new Date(goc.getFullYear(), goc.getMonth(), goc.getDate() + i,
                        m.h, m.p, 0, 0);
@@ -2515,13 +2641,20 @@
   var LUI_TRUOC = 2 * 60 * 60 * 1000;
 
   // Lịch của một lớp trong `lop.json`, hoặc null nếu lớp/khoá đó không có lịch.
+  // ⭐ v1.173.0 — trả `{ dots }` (mảng ĐỢT lịch, mỗi buổi giờ vào/tan riêng — lớp hai khung giờ).
+  // `lop.json` có `lich` (hàm máy chủ `dung-lop.js` ≥ 28/09) thì dùng nó; bản cũ chỉ có
+  // `thu`/`gio`/`tan` thì dựng MỘT đợt từ ba trường đó — y hệt hành vi trước v1.173.0.
   function lichCua(dl, maLop) {
     var l = lopTheoMa(dl || {}, String(maLop || ''));
     if (!l || l.nghi) return null;                 // lớp TẠM NGHỈ: không buổi nào
+    var dots = chuanLichTuan(l.lich, false).map(function (d) {
+      return { tu: d.tu, buoi: d.buoi.filter(function (b) { return !!b.tan; }) };
+    }).filter(function (d) { return d.buoi.length; });
+    if (dots.length) return { dots: dots };
     var thu = thuTuChuoi(l.thu);
     var vao = gioPhut(l.gio), tan = gioPhut(l.tan);
     if (!thu.length || !vao || !tan) return null;  // thiếu một trong ba thì thôi
-    return { thu: thu, vao: vao, tan: tan };
+    return { dots: [{ tu: '', buoi: thu.map(function (t) { return { thu: t, vao: vao, tan: tan }; }) }] };
   }
 
   // BUỔI HỌC mà một mốc thời gian `moc` thuộc về: { batDau, ketThuc } tính bằng
@@ -2536,15 +2669,18 @@
     if (!c || !moc) return null;
     var g = new Date(moc);
     for (var i = -1; i <= 1; i++) {
-      var d = new Date(g.getFullYear(), g.getMonth(), g.getDate() + i,
-                       c.vao.h, c.vao.p, 0, 0);
-      if (c.thu.indexOf(d.getDay()) < 0) continue;
-      var batDau = d.getTime();
-      var ketThuc = new Date(g.getFullYear(), g.getMonth(), g.getDate() + i,
-                             c.tan.h, c.tan.p, 0, 0).getTime();
-      if (ketThuc <= batDau) ketThuc += 24 * 60 * 60 * 1000;   // vắt qua nửa đêm
-      if (moc >= batDau - LUI_TRUOC && moc < ketThuc) {
-        return { batDau: batDau, ketThuc: ketThuc };
+      var ngay = new Date(g.getFullYear(), g.getMonth(), g.getDate() + i);
+      // ⭐ v1.173.0 — mỗi buổi của NGÀY đó một giờ vào/tan riêng (lớp hai khung giờ).
+      var bs = buoiTrongNgayLich(c.dots, ngay);
+      for (var j = 0; j < bs.length; j++) {
+        var batDau = new Date(ngay.getFullYear(), ngay.getMonth(), ngay.getDate(),
+                              bs[j].vao.h, bs[j].vao.p, 0, 0).getTime();
+        var ketThuc = new Date(ngay.getFullYear(), ngay.getMonth(), ngay.getDate(),
+                               bs[j].tan.h, bs[j].tan.p, 0, 0).getTime();
+        if (ketThuc <= batDau) ketThuc += 24 * 60 * 60 * 1000;   // vắt qua nửa đêm
+        if (moc >= batDau - LUI_TRUOC && moc < ketThuc) {
+          return { batDau: batDau, ketThuc: ketThuc };
+        }
       }
     }
     return null;
@@ -2559,7 +2695,7 @@
   // đúng ý thầy: chỉ thẻ "hết hạn đúng buổi này" mới được đổi màu.
   function theDangHoc(dl, maLop, hanMoc) {
     if (!hanMoc) return false;
-    var luc = Date.now();
+    var luc = gioNay();
     if (hanMoc > luc) return false;
     var b = buoiChuaMoc(dl, maLop, hanMoc);
     return !!b && luc < b.ketThuc;
@@ -2581,7 +2717,7 @@
     var m = nghiCua(maLop);
     if (m == null) return false;
     var b = buoiChuaMoc(dl, maLop, m);
-    return !b || Date.now() < b.ketThuc;
+    return !b || gioNay() < b.ketThuc;
   }
 
   // ---------- RUỘT THẺ NGHỈ: BÓNG BAY + GAME KHỦNG LONG ----------
@@ -2985,7 +3121,7 @@
       var moc = +e.getAttribute('data-moc');
       var boc = e.parentElement;                   // .nghi-han (v1.50.0)
       if (!moc) { e.textContent = '—'; continue; }
-      var con = moc - Date.now();
+      var con = moc - gioNay();
       // Hết hạn thì bỏ luôn nhãn "BUỔI HỌC TIẾP THEO TRONG" (CSS
       // `.nghi-han.het .nghi-nhan` ẩn nó), không thì đọc thành
       // "…TIẾP THEO TRONG ĐÃ ĐẾN GIỜ HỌC".
@@ -3139,7 +3275,7 @@
       lop: { stringValue: nopLopChuan(d.lop) }, bai: { stringValue: nopBaiChuan(d.bai) },
       o: { integerValue: String(Math.max(0, +d.o || 0)) }, ma: { stringValue: nopMaChuan(d.ma) },
       ten: { stringValue: String(d.ten || '').slice(0, 120) },
-      trang: { mapValue: { fields: trang } }, luc: { integerValue: String(Math.round(+d.luc || Date.now())) } } };
+      trang: { mapValue: { fields: trang } }, luc: { integerValue: String(Math.round(+d.luc || gioNay())) } } };
   }
   // Ghi ĐÈ trọn tài liệu (7 trường, đúng hasOnly). Trả Promise<true|false>.
   // ⭐ v1.161.0 (27/09/2026, sau tấn công Tr0ngX) — luật đòi ID token ĐÚNG em (tools/dang-luat-tien-do.js):
@@ -3230,9 +3366,9 @@
       return nopDoc(lop, bai, o, ma).then(function (cu) {
         var d = cu || { lop: lop, bai: bai, o: o, ma: ma, ten: ten, trang: {}, luc: 0 };
         d.ten = ten || d.ten; d.trang = d.trang || {};
-        d.trang[String(n)] = { luc: Date.now(), url: urls[0], nho: urls[1] || urls[0],
-                                thuTu: thuTu != null ? +thuTu : Date.now() };
-        d.luc = Date.now();
+        d.trang[String(n)] = { luc: gioNay(), url: urls[0], nho: urls[1] || urls[0],
+                                thuTu: thuTu != null ? +thuTu : gioNay() };
+        d.luc = gioNay();
         return nopGhi(d).then(function (ok) {
           if (!ok) throw new Error('Kho từ chối ghi bài nộp');
           return { ok: true, trang: d.trang };
@@ -3250,7 +3386,7 @@
       var d = cu || { lop: lop, bai: bai, o: o, ma: ma, ten: ten, trang: {}, luc: 0 };
       d.ten = ten || d.ten; d.trang = d.trang || {};
       Object.keys(doiFs || {}).forEach(function (n) { if (d.trang[n]) d.trang[n].thuTu = +doiFs[n]; });
-      d.luc = Date.now();
+      d.luc = gioNay();
       return nopGhi(d).then(function (ok) {
         if (!ok) throw new Error('Kho từ chối ghi thứ tự');
         return { ok: true, trang: d.trang };
@@ -3271,7 +3407,7 @@
       var t = d.trang[String(n)];
       if (!t || !t.url) throw new Error('Trang này chưa nộp gì để huỷ');
       t.huy = true;
-      d.luc = Date.now();
+      d.luc = gioNay();
       return nopGhi(d).then(function (ok) {
         if (!ok) throw new Error('Kho từ chối ghi bài huỷ');
         return { ok: true, trang: d.trang };
@@ -3284,6 +3420,7 @@
                  tuFs: nopTuFs, BUCKET: NOP_BUCKET };
 
   window.AWC = {
+    gioNay: gioNay, doLechDongHo: doLechDongHo,   // ⭐ v1.174.0 — giờ chuẩn theo máy chủ (xem đầu file)
     CFG: CFG,
     // ⭐ v1.78.0 — khóa học + một mã ở nhiều nơi + chấm "CÓ BÀI MỚI"
     dsNoiHoc: dsNoiHoc, laKhoa: laKhoa, moiNoiTheoMa: moiNoiTheoMa,
@@ -3339,7 +3476,7 @@
     trangThaiThe: trangThaiThe, datTrangThai: datTrangThai, conHan: conHan,
     // ⭐ v1.37.0 — avatar dùng chung + chấm đỏ tin nhắn mới
     avSlugLop: avSlugLop, avSlugTen: avSlugTen, avUrl: avUrl, gaAvatar: gaAvatar,
-    napAvatarKho: napAvatarKho, deAvatarKho: deAvatarKho, batAvatarKho: batAvatarKho,
+    napAvatarKho: napAvatarKho, deAvatarKho: deAvatarKho, batAvatarKho: batAvatarKho, quenAvatarKho: quenAvatarKho,
     avTenKhop: avTenKhop, avTenDayDu: avTenDayDu,
     mocDaXem: mocDaXem, danhDauDaXem: danhDauDaXem,
     mocTinMoi: mocTinMoi, datMocTinMoi: datMocTinMoi,
