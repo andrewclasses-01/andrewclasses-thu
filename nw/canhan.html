@@ -154,11 +154,30 @@
       var file = this.files && this.files[0]; this.value = ''; if (!file) return;
       try {
         NW.toast('Đang tải ảnh…');
-        var blob = await NW.nenAnh(file, { canhDai: CFG.ANH.avatar, vuong: true, chatLuong: 0.86 });
-        var url = ph.banThu ? URL.createObjectURL(blob) : await NW.taiAnh(blob, 'avatar_' + Date.now().toString(36) + '.jpg');
-        await capNhatHoSo({ anh: url }); NW.toast('Đã đổi ảnh đại diện.');
+        var url;
+        if (ph.banThu) {
+          url = URL.createObjectURL(await NW.nenAnh(file, { canhDai: CFG.ANH.avatar, vuong: true, chatLuong: 0.86 }));
+          await capNhatHoSo({ anh: url });
+        } else if (NW.toi && NW.toi.vaiTro !== 'gv') {
+          // ⭐ 29/09/2026 (thầy chốt) — ẢNH ĐẠI DIỆN CỦA EM LÀ ẢNH CHUNG CẢ HỆ (trang lớp, bảng xếp hạng, myStudent, myTeam…):
+          // đi qua hàm máy chủ `qlAnhDaiDien` (việc `tuDat`, tối đa 5 lần/ngày) — y đường thầy đổi trên dashboard; thầy đổi
+          // sau là đè lên. Luật không cho em tự ghi `anh` nữa. Ảnh cắt vuông: lớn 480 px + nhỏ 96 px.
+          var lon = await NW.nenAnh(file, { canhDai: 480, vuong: true, chatLuong: 0.88 });
+          var nho = await NW.nenAnh(file, { canhDai: 96, vuong: true, chatLuong: 0.82 });
+          var kq = await NW.goiHam('qlAnhDaiDien', { viec: 'tuDat', lon: await NW.blobB64(lon), nho: await NW.blobB64(nho) });
+          url = kq.anhNw || '';
+          if (!url) throw new Error('Máy chủ chưa trả ảnh mới — thử lại sau ít phút.');
+          Object.assign(hs, { anh: url }); Object.assign(NW.toi, { anh: url });
+          try { sessionStorage.removeItem('nwHoSo:' + toi.uid); } catch (e) { }
+          ve();
+        } else {
+          var blob = await NW.nenAnh(file, { canhDai: CFG.ANH.avatar, vuong: true, chatLuong: 0.86 });   // ảnh của THẦY: như cũ
+          url = await NW.taiAnh(blob, 'avatar_' + Date.now().toString(36) + '.jpg');
+          await capNhatHoSo({ anh: url });
+        }
+        NW.toast('Đã đổi ảnh đại diện.');
         var nutAv = $('#nutAv'); if (nutAv) { var im = nutAv.querySelector('img'); if (im) im.src = url; else nutAv.insertAdjacentHTML('afterbegin', '<img src="' + an(url) + '" alt="">'); }
-      } catch (e) { NW.toast(NW.chuLoiKho(e), true); }
+      } catch (e) { var cau = String((e && e.message) || ''); NW.toast(/[à-ỹđ]/i.test(cau) ? cau : NW.chuLoiKho(e), true); }
     };
     $('#fileBia').onchange = async function () {
       var file = this.files && this.files[0]; this.value = ''; if (!file) return;

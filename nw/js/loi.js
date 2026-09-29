@@ -264,6 +264,22 @@
     return _st;
   }
   NW.fb = fb; NW.storage = storage;
+  // ⭐ 29/09/2026 — gọi HÀM MÁY CHỦ (asia-southeast1) bằng phiên đang đăng nhập. Dùng cho em tự đổi ảnh đại diện (qlAnhDaiDien).
+  NW.goiHam = async function (ten, data) {
+    var f = await fb();
+    var fnMod = await import(SDK + '/firebase-functions.js');
+    var r = await fnMod.httpsCallable(fnMod.getFunctions(f.app, 'asia-southeast1'), ten, { timeout: 120000 })(data || {});
+    return (r && r.data) || {};
+  };
+  // Blob ⇒ base64 (không tiền tố data:).
+  NW.blobB64 = function (blob) {
+    return new Promise(function (res, rej) {
+      var rd = new FileReader();
+      rd.onload = function () { res(String(rd.result || '').split(',')[1] || ''); };
+      rd.onerror = function () { rej(rd.error || new Error('Không đọc được ảnh')); };
+      rd.readAsDataURL(blob);
+    });
+  };
 
   // ---------- băm mã → email giả ----------
   async function sha256Hex(s) {
