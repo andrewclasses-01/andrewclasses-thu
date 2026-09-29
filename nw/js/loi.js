@@ -296,6 +296,7 @@
   NW.toi = null;          // hồ sơ người đang đăng nhập (nwUsers/{uid} + laThay)
   var _phienP = null;
 
+  function laQuanTriUser(u) { return !!(u && u.email && /@quantri\.andrewclasses\.com$/.test(u.email)); }
   function laThayUser(u) {
     if (!u) return false;
     if (u.uid === 'thay') return true;
@@ -321,6 +322,11 @@
       var u = await userHienTai();
       if (!u) { NW.toi = null; return null; }
       var laThay = laThayUser(u);
+      // ⭐ 29/09/2026 — TÀI KHOẢN QUẢN TRỊ (web v1.176.0: ID + mật khẩu + Google Authenticator, đuôi @quantri.andrewclasses.com):
+      // là thầy khi token mang claim `thay` (y luật laThay()). Thầy đăng nhập dashboard là phiên này dùng chung sang mạng xã hội.
+      if (!laThay && laQuanTriUser(u)) {
+        try { laThay = (await u.getIdTokenResult()).claims.thay === true; } catch (e) { laThay = false; }
+      }
       var hs = null;
       try {
         var snap = await f.fs.getDoc(f.fs.doc(f.db, 'nwUsers', u.uid));
