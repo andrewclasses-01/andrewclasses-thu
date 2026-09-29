@@ -1259,7 +1259,7 @@
       var lu = { id: r.id || '', ms: r.ms || 0, luc: r.luc || 0, sv: r.sv || 0, diem: r.diem, tong: r.tong, dd: !!r.dd, pt: pt, tay: !!r.tay };
       var g = Math.round((r.ms || 0) / 1000);
       // ⭐ v1.180.0 — lượt NHẬP TAY không có giờ làm (0) ⇒ khi HOÀ ĐIỂM không được thắng lượt thật về tốc độ: xếp như chậm nhất.
-      var gx = r.tay ? 1e9 : g;
+      var gx = (r.tay && !g) ? 1e9 : g;   // v1.181.0 — nay thầy nhập kèm thời gian làm bài ⇒ có giờ thì xếp như lượt thật
       // ⭐ v1.147.0 (thầy chốt 24/09) — "NỘP LÚC" = lượt ĐẦU TIÊN em ĐẠT điểm tối đa (`lucDat`); chưa đạt thì
       // lấy lúc của lượt TỐT NHẤT (`lucTot`). Trước đây là lượt nộp đầu tiên bất kỳ — nay lượt dở cũng nộp,
       // lượt đầu có thể chỉ là vài câu rồi bỏ. `lucCuoi` = lượt gần nhất (hoạt động gần đây ở dashboard).
@@ -1867,7 +1867,12 @@
     // ⭐ v1.88.0 — WORKSHEET: chỉ là thẻ nhắc bài giấy, không có trang bài tập
     // nào để mở. `dungCot()` bên lop.html đã có sẵn nhánh báo "giao trên giấy"
     // cho mọi thẻ thiếu `trang` — không cần code thêm gì ở đó.
-    if (d === 'WORKSHEET') return '';
+    // ⭐ v1.184.0 (29/09/2026) — CÓ PDF (khối `ws` mang `tep`) ⇒ mở `bai.html`: trang đó đã
+    // có sẵn khối WORKSHEET ở thanh đầu (tải PDF + nộp ảnh) và TỰ MỞ bảng khi bài chỉ có
+    // worksheet. Không có PDF (bài giấy thuần) ⇒ '' như cũ, thẻ báo "giao trên giấy".
+    if (d === 'WORKSHEET') {
+      return (b.khoi || []).some(function (k) { return k && k.loai === 'ws' && k.tep; }) ? 'bai.html' : '';
+    }
     if (d.indexOf('SP') === 0 || d.indexOf('SLIDE') >= 0) return 'bai-sp.html';
     return 'bai.html';
   }

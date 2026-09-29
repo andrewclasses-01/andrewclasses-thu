@@ -1984,7 +1984,7 @@ table.hq-tl.deu td, table.hq-tl.deu th{overflow:hidden}
 .bxh-dong .diem small{font-size:.7em; font-weight:700; color:var(--nhat)}
 .bxh-dong .diem.full{color:#16A34A}
 .bxh-dong .tg{font:700 calc(var(--f)*.86)/1 var(--font); color:var(--mo); font-variant-numeric:tabular-nums; text-align:right}
-.bxh-dong.chua .ten{color:#DC2626}
+.bxh-dong.chua .ten, .bxh-dong.gan-han .ten{color:#DC2626}
 .bxh-dong.chua .diem, .bxh-dong.chua .tg{color:#D3DCDA}
 .hq-xh-phai{--f:13px; --av:26px; min-width:0; min-height:0; border:1px solid var(--vien); border-radius:14px; background:var(--the); display:flex; flex-direction:column; overflow:hidden}
 .bd-dau{flex:none; display:flex; align-items:baseline; justify-content:center; gap:10px; padding:10px 14px 8px; border-bottom:1px solid var(--vien)}
@@ -3383,10 +3383,10 @@ button.mk-em:hover{border-color:currentColor}
 
 <div class="toast" id="toast"></div>
 
-<script src="config.js?v=169"></script>
+<script src="config.js?v=171"></script>
 <script src="js/thay-vao.js?v=2"></script>
 <script src="js/app-check.js?v=2"></script>
-<script src="js/chung.js?v=73"></script>
+<script src="js/chung.js?v=75"></script>
 <script src="js/chat.js?v=28"></script>
 <!-- ⭐ v1.52.0 — phiên thầy (Firebase Auth); PHẢI nạp sau chat.js (dùng chung app Firebase) -->
 <script src="js/thay.js?v=4"></script>
@@ -3938,11 +3938,14 @@ button.mk-em:hover{border-color:currentColor}
   // ⭐ v1.115.0 — thầy chốt: LUÔN viết tắt họ + tên đệm, giữ nguyên tên chính,
   // dùng cho nhãn tên dưới icon avatar (tên đầy đủ vẫn xem được khi rê chuột).
   // "Mạc Minh Khang" -> "M.M.Khang" · "Bảo Trâm" -> "B.Trâm"
+  // ⛔ v1.183.0 (thầy chốt 29/09) — KHÔNG BAO GIỜ tắt TÊN CUỐI. Đuôi không có chữ cái (số phân biệt trùng tên "2", "(A)"…)
+  // bám theo tên cuối chứ không phải tên cuối: MAI DƯƠNG 2 → M.DƯƠNG 2 (trước: M.D.2), THÙY DƯƠNG 1 → T.DƯƠNG 1.
   function vietTat(ten) {
-    var tu = String(ten || '').trim().split(/\s+/);
+    var tu = String(ten || '').trim().split(/\s+/), duoi = [];
+    while (tu.length && !/\p{L}/u.test(tu[tu.length - 1])) duoi.unshift(tu.pop());
     if (tu.length < 2) return ten;
     var chinh = tu.pop();
-    return tu.map(function (w) { return w.charAt(0).toUpperCase() + '.'; }).join('') + chinh;
+    return tu.map(function (w) { return w.charAt(0).toUpperCase() + '.'; }).join('') + chinh + (duoi.length ? ' ' + duoi.join(' ') : '');
   }
   // v1.144.3 (thầy chốt 24/09) — tên trong hộp quản lý: quá 10 ký tự thì viết tắt họ + đệm (ĐỖ NGỌC MINH KHANG → Đ.N.M.KHANG).
   // Trả HTML đã thoát; tên gốc đi vào `title` của thẻ bọc qua `tenGonTitle`.
@@ -4608,7 +4611,7 @@ button.mk-em:hover{border-color:currentColor}
   // lop.html — sửa là sửa cả hai.
   function wsNhac(b) {
     var ten = A.tenWorksheet(b).map(A.chuAnToan).join(' · ');
-    return '<span class="ws-nhac" title="' + A.chuAnToan(ten) + '">EM HÃY HOÀN THÀNH BÀI TẬP GIẤY' +
+    return '<span class="ws-nhac" title="' + A.chuAnToan(ten) + '">EM HÃY HOÀN THÀNH BÀI TẬP' + (A.trangCuaBai(b) ? '' : ' GIẤY') +
       (ten ? '<br><span class="ws-nhac-ten">' + ten + '</span>!' : '<br>TRÊN WORKSHEET!') + '</span>';
   }
 
@@ -6884,7 +6887,7 @@ button.mk-em:hover{border-color:currentColor}
         // v1.147.0 — lượt NỘP DỞ cũng là lượt đã nộp (điểm tính trên mẫu chuẩn của act).
         if ((l.loai !== 'nop' && l.loai !== 'dodang') || l.mistakes) return;
         var mau = l.loai === 'dodang' ? hqMauAct(a.ma) : (+l.tong || soCau), r = mau ? (+l.diem || 0) / mau : 0;
-        var gG = l.giayGame != null ? l.giayGame : l.giay;   // v1.144.0 — giờ đồng hồ game em thấy, không phải giờ hoạt động
+        var gG = l.giayGame != null ? l.giayGame : l.giay; if (l.tay && !gG) gG = 1e9;   // v1.181.0 — lượt nhập tay cũ (không giờ) không thắng hoà điểm. v1.144.0 — giờ đồng hồ game em thấy, không phải giờ hoạt động
         if (!tot || r > tot.r || (r === tot.r && gG < tot.giay)) tot = { r: r, diem: +l.diem || 0, mau: mau, giay: gG };
       });
       return { h: h, tot: tot, full: coTrongDiem(DIEM[a.ma] || [], h.ten, a.ma) };
@@ -6895,6 +6898,8 @@ button.mk-em:hover{border-color:currentColor}
       return (y.tot.r - x.tot.r) || (x.tot.giay - y.tot.giay) || x.h.ten.localeCompare(y.h.ten, 'vi');
     });
     var xong = dong.filter(function (d) { return d.full; }).length, n = dong.length, dangDoc = !HQ.act[a.ma] && !(DIEM[a.ma] || []).length;
+    // ⭐ v1.182.0 (thầy chốt 29/09) — hạn của act còn ≤ 5 GIỜ (hoặc đã qua) ⇒ em CHƯA ĐỦ ĐIỂM TỐI ĐA, dù có điểm, cũng tên đỏ.
+    var mocAct = hqMocHanAct(a), ganHan = mocAct != null && mocAct - A.gioNay() <= HQ_GAN_HAN_MS;
     var mmss = function (g) { return Math.floor(g / 60) + ':' + ('0' + (g % 60)).slice(-2); };
     var c = CHUAN[a.ma], mauChu = String(a.mau || '').trim();
     return '<div class="bxh" style="--n:' + n + '"><div class="bxh-dau"><i style="background:' + MAU_TT[j % MAU_TT.length] + '"></i><b title="' + A.chuAnToan(a.ten) + '">' + A.chuAnToan(hqNhanAct(a)) + '</b>' +
@@ -6902,10 +6907,23 @@ button.mk-em:hover{border-color:currentColor}
       '<span class="dem' + (n && xong === n ? ' du' : '') + '">' + (dangDoc ? '…' : xong + '/' + n + ' đã xong') + '</span></div><div class="bxh-ds">' +
       dong.map(function (d, k) {
         var hang = d.tot ? (k < 3 ? '<span class="hang hc h' + (k + 1) + '">' + (k + 1) + '</span>' : '<span class="hang">' + (k + 1) + '</span>') : '<span class="hang">–</span>';
-        return '<div class="bxh-dong' + (d.tot ? '' : ' chua') + '" data-hq-em="' + A.chuAnToan(d.h.ten) + '" title="Đúp để xem chi tiết">' + hang + '<span class="ten"' + tenGonTitle(d.h.ten) + '>' + tenGon(d.h.ten) + '</span>' +
+        return '<div class="bxh-dong' + (d.tot ? (ganHan && !d.full ? ' gan-han' : '') : ' chua') + '" data-hq-em="' + A.chuAnToan(d.h.ten) + '" title="Đúp để xem chi tiết">' + hang + '<span class="ten"' + tenGonTitle(d.h.ten) + '>' + tenGon(d.h.ten) + '</span>' +
           '<span class="diem' + (d.full ? ' full' : '') + '">' + (d.tot ? d.tot.diem + (d.tot.mau ? '<small>/' + d.tot.mau + '</small>' : '') : '—') + '</span>' +
-          '<span class="tg">' + (d.tot && d.tot.giay ? mmss(d.tot.giay) : '—') + '</span></div>';
+          '<span class="tg">' + (d.tot && d.tot.giay && d.tot.giay < 1e9 ? mmss(d.tot.giay) : '—') + '</span></div>';
       }).join('') + '</div></div>';
+  }
+  var HQ_GAN_HAN_MS = 5 * 3600 * 1000;
+  // Mốc hạn (ms) của MỘT act trong hộp: thẻ STAGE lấy hạn của CHẶNG chứa act đó, thẻ thường lấy hạn thẻ. Không có hạn ⇒ null.
+  function hqMocHanAct(a) {
+    var t = HQ.t, b = HQ.b;
+    if (t && t.stage && t.chang) {
+      for (var i = 0; i < t.chang.length; i++) {
+        var c = t.chang[i];
+        if ((c.acts || []).some(function (x) { return x.ma === a.ma; })) return c.moc != null ? c.moc : null;
+      }
+    }
+    var m = b ? A.mocHan(b) : null;
+    return m == null ? null : m;
   }
   function hqTabXepHang() {
     var t = HQ.t, pv = hqPhamVi(), kt = hqKt(hqSoDangXem());
@@ -7936,7 +7954,7 @@ button.mk-em:hover{border-color:currentColor}
       '<div class="dau-chu"><div class="t1" id="hqCtTen" title="Đúp = chép ẢNH pop-up này">' + A.chuAnToan(ten) + '</div><div class="t2">' + A.chuAnToan(dong2) + '</div></div>' +
       '<button type="button" class="hq-nut-zoom" id="hqCtZoom" title="' + (ct.zoom ? 'Về màn tổng quan' : 'Xem chi tiết: đồ thị tiến triển theo thời gian') + '">' + (ct.zoom ? IC_THU + 'Tổng quan' : IC_ZOOM + 'Chi tiết') + '</button>' +
       '<button type="button" class="bm-dong" id="hqCtDong" title="Đóng"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>';
-    var bang = '<div class="hq-ct-khoi"><h4>Lượt luyện tập<span id="hqCtNgayO">' + hqCtNhanNgay() + '</span><button type="button" class="nt-nut" id="hqCtNhapTay" title="Lượt nộp của em không lên được kho? Thầy nhập điểm tay ở đây">+ Nhập điểm tay</button><span class="dem" id="hqCtDem">' + dong.length + ' lượt</span></h4><div class="hq-ct-cuon">' + hqCtBang(dong) + '</div>' + hqCtChip(dl, mc, dong.length) + '</div>';
+    var bang = '<div class="hq-ct-khoi"><h4>Lượt luyện tập<span id="hqCtNgayO">' + hqCtNhanNgay() + '</span><button type="button" class="nt-nut" id="hqCtNhapTay"' + (HQ_NT_HIEN ? '' : ' hidden') + ' title="Lượt nộp của em không lên được kho? Thầy nhập điểm tay ở đây">+ Nhập điểm tay</button><span class="dem" id="hqCtDem">' + dong.length + ' lượt</span></h4><div class="hq-ct-cuon">' + hqCtBang(dong) + '</div>' + hqCtChip(dl, mc, dong.length) + '</div>';
     if (!ct.zoom) {
       var gVideo = hqGioVideo(ten), gNghe = hqGioNghe(ten), gAct = 0, nop = 0, luyen = 0, doo = 0, soNgay = 0;
       // v1.147.0 — "luyện" gồm LUYỆN cũ + CÂU SAI. v1.151.0 — lượt dở (dodang) nay hiện là BỎ DỞ ⇒ đếm vào "bỏ dở" cho khớp bảng.
@@ -7979,6 +7997,8 @@ button.mk-em:hover{border-color:currentColor}
   // mã bắt đầu `tay` = nhãn NHẬP TAY, không cần đổi luật). KHÔNG ghi `results` (không có bài làm từng câu) — bảng xếp hạng chỉ đọc `scores`.
   // Ghi xong: bump `submitCount` để mọi máy đọc lại kho (bản nhớ điểm so theo số này). Xoá lượt nhập tay: luật `scores` chỉ cho isTeacher
   // (Google của thầy) — phiên khác báo lỗi rõ.
+  // v1.182.0 (thầy chốt 29/09) — nút ẨN mặc định; ĐÚP tiêu đề "LƯỢT LUYỆN TẬP" để hiện/ẩn (nhớ tới khi tải lại trang).
+  var HQ_NT_HIEN = false;
   function ntDong() { $('#ntNen').classList.remove('mo'); }
   function ntTongMacDinh(a) { var c = CHUAN[a.ma], n = (c && +c.soCau > 0) ? +c.soCau : hqMauAct(a.ma); return n || ''; }
   function ntMoGio(ms) {
@@ -7990,38 +8010,44 @@ button.mk-em:hover{border-color:currentColor}
     var dl = hqCtDuLieu(); if (!dl) return;
     var acts = dl.t.acts;
     if (!acts.length) { baoToast('Bài này chưa có act nào để nhập điểm.'); return; }
-    var mc = hqCtChon(dl), bat = dl.acts.filter(function (x) { return !mc.tatCa && mc.bat.indexOf(x.k) >= 0; })[0];
-    var iBat = bat ? dl.acts.indexOf(bat) : 0;
+    // v1.181.0 (thầy chốt 29/09) — KHÔNG chọn sẵn act: thầy phải tự chọn, tránh ghi nhầm act đang bật chip.
     $('#ntHop').innerHTML =
       '<h3>Nhập điểm tay</h3><div class="nt-em">' + A.chuAnToan(dl.ten) + '</div>' +
-      '<label>Act<select id="ntAct">' + acts.map(function (a, j) { return '<option value="' + j + '"' + (j === iBat ? ' selected' : '') + '>' + A.chuAnToan(hqNhanAct(a)) + '</option>'; }).join('') + '</select></label>' +
+      '<label>Act<select id="ntAct"><option value="" selected disabled>— Chọn act —</option>' + acts.map(function (a, j) { return '<option value="' + j + '">' + A.chuAnToan(hqNhanAct(a)) + '</option>'; }).join('') + '</select></label>' +
       '<div class="nt-hang"><label>Số câu đúng<input id="ntDiem" type="number" inputmode="numeric" min="0" step="1"></label>' +
       '<label>Tổng số câu<input id="ntTong" type="number" inputmode="numeric" min="1" step="1"></label></div>' +
+      // v1.181.0 — THỜI GIAN LÀM BÀI (bắt buộc) ⇒ ghi `timeMs` như lượt thật ⇒ hoà điểm thì xếp đúng chỗ theo tốc độ.
+      '<div class="nt-hang"><label>Làm bài · phút<input id="ntPhut" type="number" inputmode="numeric" min="0" step="1"></label>' +
+      '<label>Làm bài · giây<input id="ntGiay" type="number" inputmode="numeric" min="0" max="59" step="1"></label></div>' +
       '<label>Giờ nộp<input id="ntGio" type="datetime-local"></label>' +
       '<div class="nt-loi" id="ntLoi"></div>' +
       '<div class="nt-nut-hang"><button type="button" id="ntHuy">Huỷ</button><button type="button" class="chinh" id="ntLuu">Lưu điểm</button></div>';
     $('#ntGio').value = ntMoGio(Date.now());
-    var doiAct = function () { $('#ntTong').value = ntTongMacDinh(acts[+$('#ntAct').value]); };
-    $('#ntAct').onchange = doiAct; doiAct();
+    $('#ntAct').onchange = function () { if ($('#ntAct').value !== '') $('#ntTong').value = ntTongMacDinh(acts[+$('#ntAct').value]); };
     $('#ntHuy').onclick = ntDong;
     $('#ntNen').onclick = function (e) { if (e.target === $('#ntNen')) ntDong(); };
     $('#ntLuu').onclick = function () { ntLuu(dl); };
     $('#ntNen').classList.add('mo');
-    setTimeout(function () { var o = $('#ntDiem'); if (o) o.focus(); }, 30);
+    setTimeout(function () { var o = $('#ntAct'); if (o) o.focus(); }, 30);
   }
   function ntLuu(dl) {
     var loi = function (s) { $('#ntLoi').textContent = s; };
+    if ($('#ntAct').value === '') return loi('Chưa chọn act.');
     var a = dl.t.acts[+$('#ntAct').value], diem = +$('#ntDiem').value, tong = +$('#ntTong').value, gio = Date.parse($('#ntGio').value);
+    var phut = $('#ntPhut').value === '' ? 0 : +$('#ntPhut').value, giay = $('#ntGiay').value === '' ? 0 : +$('#ntGiay').value;
     if ($('#ntDiem').value === '' || !isFinite(diem) || diem < 0 || Math.floor(diem) !== diem) return loi('Số câu đúng phải là số nguyên từ 0 trở lên.');
     if (!isFinite(tong) || tong < 1 || tong > 500 || Math.floor(tong) !== tong) return loi('Tổng số câu chưa đúng.');
     if (diem > tong) return loi('Số câu đúng không được lớn hơn tổng số câu.');
+    if (!isFinite(phut) || !isFinite(giay) || phut < 0 || giay < 0 || giay > 59 || Math.floor(phut) !== phut || Math.floor(giay) !== giay || phut > 600) return loi('Thời gian làm bài chưa đúng (phút ≥ 0, giây 0–59).');
+    var timeMs = (phut * 60 + giay) * 1000;
+    if (!timeMs) return loi('Chưa nhập thời gian làm bài.');
     if (!isFinite(gio)) return loi('Chưa chọn giờ nộp.');
     if (gio > Date.now() + 5 * 60000) return loi('Giờ nộp không được ở tương lai.');
     loi('');
     var nut = $('#ntLuu'); nut.disabled = true; nut.textContent = 'Đang lưu…';
     var em = dl.h, ma = A.chuanMa(em.ma || '');
     var id = 'tay' + Date.now() + 'x' + Math.random().toString(36).slice(2, 6);
-    var goi = { name: String(dl.ten).slice(0, 40), score: diem, total: tong, timeMs: 0, createdAt: gio };
+    var goi = { name: String(dl.ten).slice(0, 40), score: diem, total: tong, timeMs: timeMs, createdAt: gio };
     if (ma) goi.ma = ma.slice(0, 60);
     spDb().then(function (f) {
       return f.fs.setDoc(f.fs.doc(f.db, 'assignments', a.ma, 'scores', id), goi).then(function () {
@@ -8056,7 +8082,7 @@ button.mk-em:hover{border-color:currentColor}
       });
     }).then(function () { baoToast('Đã xoá lượt nhập tay.'); return ntNapLai(code); })['catch'](function (e) {
       if (nut) nut.disabled = false;
-      baoToast(e && e.code === 'permission-denied' ? 'Xoá lượt nhập tay cần đăng nhập Google của thầy.' : 'Chưa xoá được.');
+      baoToast(e && e.code === 'permission-denied' ? 'Kho từ chối xoá — cần phiên thầy (luật 29/09: tài khoản quản trị xoá được lượt nhập tay).' : 'Chưa xoá được: ' + ((e && e.message) || e));
     });
   }
   function dongHqChiTiet() {
@@ -10225,6 +10251,12 @@ button.mk-em:hover{border-color:currentColor}
       }
       // ⭐ v1.137.0 — ĐÚP một khối chặng ở tab BÀI TẬP ⇒ cả hành trình.
       if (e.target.closest('[data-hqkhoi]') && !e.target.closest('button, a')) { e.preventDefault(); hqDoiChang('all'); return; }
+      // ⭐ v1.182.0 — ĐÚP tiêu đề LƯỢT LUYỆN TẬP (khối có nút nhập tay) ⇒ hiện/ẩn nút "+ Nhập điểm tay".
+      var h4Nt = e.target.closest('#hqCtHop .hq-ct-khoi h4');
+      if (h4Nt && h4Nt.querySelector('#hqCtNhapTay') && !e.target.closest('button')) {
+        e.preventDefault(); var sel5 = window.getSelection && window.getSelection(); if (sel5) sel5.removeAllRanges();
+        HQ_NT_HIEN = !HQ_NT_HIEN; h4Nt.querySelector('#hqCtNhapTay').hidden = !HQ_NT_HIEN; return;
+      }
       var em = e.target.closest('[data-hq-em]');
       if (em) { e.preventDefault(); hqChiTiet(em.dataset.hqEm); }
     });
