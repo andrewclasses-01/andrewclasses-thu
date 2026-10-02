@@ -900,24 +900,24 @@ body.dang-sap-xep .lop-btn.chon{outline-color:rgba(255,255,255,.6)}
   color:#fff; font:800 calc(var(--co,32px) * .36)/1 var(--font); flex:none; margin:0!important}
 .hd-av img{position:absolute; inset:0; width:100%; height:100%; object-fit:cover}
 .hd-av:has(img){color:transparent}
-.hd-hl{display:grid; grid-template-columns:88px minmax(0,1fr) auto; gap:8px; align-items:center; padding:2px 0; min-height:26px; border-bottom:1px solid #EEF2F1}   /* v1.213.0 — gọn: thấy hết các lớp */
+.hd-hl{display:grid; grid-template-columns:108px minmax(0,1fr) auto; gap:8px; align-items:center; padding:2px 0; min-height:30px; border-bottom:1px solid #EEF2F1}   /* v1.213.0 — gọn: thấy hết các lớp · v1.218.0 thầy: chữ/icon to hơn, hàng 30px = vừa đủ 10 lớp ở màn 1080 */
 .hd-hl:last-child{border-bottom:0}
 .hd-hl.chon .hd-lop{color:var(--xanh)}
 /* ⭐ v1.212.0 — bấm 1 lần = chọn em (sáng ở cả 2 nửa); bấm đúp = chi tiết bài gần nhất */
 .hd-o, .hd-dong{cursor:pointer}
 .hd-dong:hover{background:rgba(14,124,110,.04)}
 .hd-dong.hd-chon{background:rgba(14,124,110,.09); border-radius:10px; border-bottom-color:transparent; margin:0 -8px; padding:8px}
-.hd-lop{border:0; background:none; padding:0; text-align:left; font:800 12px/1.2 var(--font); color:var(--chu); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.hd-lop{border:0; background:none; padding:0; text-align:left; font:800 14px/1.2 var(--font); color:var(--chu); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .hd-lop:hover{color:var(--xanh); text-decoration:underline}
 .hd-chong{display:flex; align-items:center; min-width:0; overflow:hidden}
 .hd-o{position:relative; margin-left:-5px; border-radius:50%; box-shadow:0 0 0 1.5px #FAFCFC; flex:none; display:inline-flex}
 .hd-o:first-child{margin-left:0}
 .hd-o:not(.on) .hd-av{opacity:.5; filter:saturate(.55)}
-.hd-o i{position:absolute; right:-1px; bottom:-1px; width:8px; height:8px; border-radius:50%; background:#22C55E; border:2px solid #FAFCFC}
-.hd-them{margin-left:4px; font:700 10.5px var(--font); color:var(--mo)}
-.hd-so{font:700 11px var(--font); color:var(--mo); white-space:nowrap}
+.hd-o i{position:absolute; right:-1px; bottom:-1px; width:9px; height:9px; border-radius:50%; background:#22C55E; border:2px solid #FAFCFC}
+.hd-them{margin-left:4px; font:700 12px var(--font); color:var(--mo)}
+.hd-so{font:700 12.5px var(--font); color:var(--mo); white-space:nowrap}
 .hd-so em{font-style:normal; color:#16A34A}
-.hd-mo{color:var(--nhat); font:500 11.5px var(--font)}
+.hd-mo{color:var(--nhat); font:500 13px var(--font)}
 .hd-hl.im .hd-lop{color:var(--nhat)}
 .hd-dong{display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:10px; align-items:center; padding:8px 0; border-bottom:1px dashed #E3EBE9}
 .hd-dong:last-child{border-bottom:0}
@@ -2511,6 +2511,26 @@ table.hq-tl.deu td, table.hq-tl.deu th{overflow:hidden}
   font:600 12.5px/1.4 var(--font); color:var(--chu); margin-bottom:11px; background:#fff}
 .sb-tim:focus{outline:none; border-color:var(--xanh)}
 .sb-trong{padding:20px 10px; text-align:center; color:var(--nhat); font-size:12.5px}
+/* ⭐ v1.218.0 (02/10/2026, thầy chốt) — bấm ☰ trên thanh đầu = POP-UP NHỎ thả xuống cạnh nút (thay cả sidebar).
+   Dùng lại NGUYÊN 2 nút #thayDn + #dangXuat (dời DOM lúc khởi động ⇒ giữ nguyên tay bắt). Sidebar cũ vẫn dùng cho veChiTiet. */
+.mn{position:fixed; z-index:120; width:288px; background:#fff; border-radius:18px; border:1px solid var(--vien);
+  box-shadow:0 18px 48px rgba(16,40,36,.20), 0 2px 8px rgba(16,40,36,.08); padding:8px;
+  transform-origin:var(--mn-goc,92%) 0; opacity:0; transform:translateY(-6px) scale(.96); pointer-events:none;
+  transition:opacity .16s ease, transform .2s cubic-bezier(.22,.9,.3,1)}
+.mn.mo{opacity:1; transform:none; pointer-events:auto}
+.mn::before{content:""; position:absolute; top:-7px; right:var(--mn-mui,18px); width:12px; height:12px; background:#fff;
+  border-left:1px solid var(--vien); border-top:1px solid var(--vien); transform:rotate(45deg); border-radius:3px 0 0 0}
+.mn-dau{display:flex; align-items:center; gap:11px; padding:8px 8px 12px; margin-bottom:6px; border-bottom:1px solid var(--vien)}
+.mn-dau img{width:42px; height:42px; border-radius:50%; object-fit:cover; flex:none; box-shadow:0 0 0 2px var(--xanh-nhat)}
+.mn-dau .ten{font:800 14.5px/1.25 var(--font); color:var(--chu)}
+.mn-dau .phu{font:600 11.5px/1.3 var(--font); color:var(--nhat)}
+.mn .sb-menu{gap:2px}
+.mn .sb-item{border:0; box-shadow:none; background:none; padding:9px 10px; border-radius:12px; gap:12px}
+.mn .sb-item:hover{background:var(--xanh-nhat)}
+.mn .sb-item .ic{width:34px; height:34px; border-radius:50%}
+.mn .sb-item .ten{font:700 13.5px/1.3 var(--font)}
+.mn .sb-item.sb-out:hover{background:var(--do-nhat)}
+@media (prefers-reduced-motion:reduce){.mn{transition:none}}
 .sb-note{margin:10px 0 0; padding:9px 11px; border-radius:10px; background:var(--vang-nhat);
   color:#8a5b0e; font:600 11.5px/1.5 var(--font)}
 
@@ -2840,6 +2860,18 @@ button.mk-em:hover{border-color:currentColor}
 .lop-hang .lop-vach::before{display:none}
 @media (max-width:1100px){ .lop-hang{grid-template-columns:repeat(3,minmax(0,1fr))} }
 @media (max-width:620px){ .lop-hang{grid-template-columns:repeat(2,minmax(0,1fr))} }
+/* ⭐ v1.218.0 (02/10/2026, thầy chốt) — CỘT CUỐI = các nút KHÓA NỀN TẢNG, ngăn với lớp thường bằng MỘT VẠCH MẢNH.
+   Lưới ngoài: 4 cột lớp thường · 1 cột vạch 1px · 1 cột khóa (mọi cột thẻ cùng 1fr ⇒ thẻ khóa = đúng cỡ thẻ lớp).
+   `.lop-grid` + `.lop-vach` dùng subgrid cột; vạch là `::before` của `.lop-vach` nằm đúng cột 1px, mờ dần hai đầu.
+   Màn ≤1100px giữ lưới gộp cũ (display:contents ở trên). */
+@media (min-width:1101px){
+  .lop-hang{grid-template-columns:repeat(4,minmax(0,1fr)) 1px minmax(0,1fr); column-gap:12px; align-items:start}
+  .lop-hang>.lop-grid{display:grid; grid-column:1/5; grid-template-columns:subgrid; gap:10px 12px}
+  .lop-hang .lop-vach{display:grid; grid-column:5/7; grid-template-columns:subgrid; align-self:stretch}
+  .lop-hang .lop-vach::before{display:block; content:''; position:static; grid-column:1; width:1px; height:auto; align-self:stretch;
+    background:linear-gradient(to bottom, rgba(14,124,110,0), rgba(14,124,110,.32) 18%, rgba(14,124,110,.32) 82%, rgba(14,124,110,0))}
+  .lop-hang .lop-grid-khoa{display:flex; flex-direction:column; gap:10px; grid-column:2; min-width:0}
+}
 .lop-btn.lb3{flex-direction:column; align-items:stretch; gap:7px; padding:11px 10px 11px 14px; min-width:0; border-radius:12px}
 .lb3 .lb-main{position:absolute; inset:0; z-index:1; padding:0; border-radius:inherit; background:none; cursor:pointer}
 .lb3 .lb-main:active{transform:none}
@@ -3038,9 +3070,10 @@ button.mk-em:hover{border-color:currentColor}
 /* ⭐ 02/10/2026 (thầy chốt, màn 1080 là màn bé nhất) — CỘT MENU GIÃN HẾT CHIỀU CAO MÀN, chừa 18px đáy.
    Các dòng chia đều phần dư (cao tối đa 56px); màn quá cao thì dòng "Quản lý & bảo mật" dồn xuống đáy.
    Khung giữa + chat tự dài theo vì `hdKeoDai()` kéo hàng 2 cột tới đáy nút baoMat.
-   Chỉ dashboard (nw-thanh.css dùng chung giữ nguyên) ⇒ bộ chọn `.nwb-ql > .nwb-ql-cot` để thắng file chung nạp sau. */
+   Chỉ dashboard (nw-thanh.css dùng chung giữ nguyên) ⇒ bộ chọn `.nwb-ql > .nwb-ql-cot` để thắng file chung nạp sau.
+   ⭐ v1.218.0 (thầy chốt) — TRẦN = đúng cỡ màn 1080 (vùng trang 911px ⇒ cột 817px): cửa sổ cao hơn thì KHÔNG giãn thêm. */
 @media (min-width:901px){
-  .nwb-ql > .nwb-ql-cot{display:flex; flex-direction:column; height:calc(100dvh - 62px - 14px - 18px); padding-bottom:0}
+  .nwb-ql > .nwb-ql-cot{display:flex; flex-direction:column; height:min(calc(100dvh - 62px - 14px - 18px), 817px); padding-bottom:0}
   .nwb-ql > .nwb-ql-cot > .nwb-ql-muc{flex:1 1 auto; max-height:56px}
   .nwb-ql > .nwb-ql-cot > .nwb-ql-vach{flex:none}
   .nwb-ql > .nwb-ql-cot > .nwb-ql-vach:last-of-type{margin-top:auto}
@@ -3496,6 +3529,11 @@ tr.qm-hang-tam td{background:#fffbeb}
 </div><!-- /nwb-ql -->
 
 <!-- ============ SIDEBAR: Quản lý mã · Thiết lập lớp · Sinh nhật · Top · Đăng xuất ============ -->
+<!-- v1.218.0 — pop-up nhỏ của nút ☰ (2 nút tài khoản được dời vào đây lúc khởi động) -->
+<div class="mn" id="menuNho" role="menu" aria-label="Menu tài khoản">
+  <div class="mn-dau"><img src="assets/avatar-tron.jpg" alt=""><div><div class="ten">Thầy Andrew</div><div class="phu" id="mnVer">Trang quản lý</div></div></div>
+  <div class="sb-menu" id="mnDs"></div>
+</div>
 <div class="sb-nen" id="sbNen"></div>
 <aside class="sb-panel" id="sbPanel" role="dialog" aria-label="Menu quản lý" aria-modal="true">
   <div class="sb-dau">
@@ -6489,7 +6527,7 @@ tr.qm-hang-tam td{background:#fffbeb}
       var d = theoLop[l.maLop] || [], on = d.filter(function (x) { return x.on; }).length, TD = 10;
       var avs = d.slice(0, TD).map(function (x) {
         var noi = x.on ? (x.trang === 'bai' ? 'đang làm ' + x.bai : x.trang === 'sp' ? 'đang ở trang Speaking' : 'đang ở trang lớp') : hdChuTruoc(x.luc);
-        return '<span class="hd-o' + (x.on ? ' on' : '') + '" data-hd-em="' + A.chuAnToan(l.maLop + '|' + x.ten) + '" title="' + A.chuAnToan(x.ten + ' · ' + noi) + '">' + hdAv(x.ten, l.maLop, 22) + (x.on ? '<i></i>' : '') + '</span>';
+        return '<span class="hd-o' + (x.on ? ' on' : '') + '" data-hd-em="' + A.chuAnToan(l.maLop + '|' + x.ten) + '" title="' + A.chuAnToan(x.ten + ' · ' + noi) + '">' + hdAv(x.ten, l.maLop, 26) + (x.on ? '<i></i>' : '') + '</span>';
       }).join('') + (d.length > TD ? '<span class="hd-them">+' + (d.length - TD) + '</span>' : '');
       return '<div class="hd-hl' + (d.length ? '' : ' im') + (l.maLop === LOP_CHON ? ' chon' : '') + '">' +
         '<button type="button" class="hd-lop" data-hd-lop="' + A.chuAnToan(l.maLop) + '" title="Chọn lớp ' + A.chuAnToan(l.tenGoc || l.maLop) + '">' + A.chuAnToan(l.tenGoc || l.maLop) + '</button>' +
@@ -11070,6 +11108,20 @@ tr.qm-hang-tam td{background:#fffbeb}
     $('#sbMenu').hidden = false;
     Object.keys(SB_MUC).forEach(function (k) { $('#' + SB_MUC[k].id).hidden = true; });
   }
+  // ⭐ v1.218.0 — đặt pop-up ngay dưới nút ☰, mép phải thẳng mép phải nút (màn hẹp thì ôm sát mép màn), mũi nhọn chỉ đúng tâm nút.
+  function menuNho(mo) {
+    var hop = $('#menuNho'), nut = $('#moSb');
+    if (!mo) { hop.classList.remove('mo'); nut.setAttribute('aria-expanded', 'false'); return; }
+    var b = nut.getBoundingClientRect(), rong = hop.offsetWidth;
+    var phai = Math.max(8, window.innerWidth - b.right);
+    if (window.innerWidth - phai - rong < 8) phai = window.innerWidth - rong - 8;
+    hop.style.top = Math.round(b.bottom + 10) + 'px';
+    hop.style.right = Math.round(phai) + 'px';
+    var mui = Math.round(window.innerWidth - phai - (b.left + b.width / 2) - 6);
+    hop.style.setProperty('--mn-mui', Math.max(12, Math.min(rong - 24, mui)) + 'px');
+    hop.style.setProperty('--mn-goc', Math.round(100 - (mui + 6) / rong * 100) + '%');
+    hop.classList.add('mo'); nut.setAttribute('aria-expanded', 'true');
+  }
   function moSb() {
     $('#sbNen').classList.add('mo');
     $('#sbPanel').classList.add('mo');
@@ -11644,7 +11696,17 @@ tr.qm-hang-tam td{background:#fffbeb}
     });
 
     // ---------- SIDEBAR ----------
-    $('#moSb').addEventListener('click', moSb);
+    // ⭐ v1.218.0 — ☰ = pop-up nhỏ cạnh nút (thầy chốt), không mở cả sidebar nữa.
+    $('#mnDs').appendChild($('#thayDn')); $('#mnDs').appendChild($('#dangXuat'));
+    $('#mnVer').textContent = 'Trang quản lý · web v' + (A.CFG.PHIEN_BAN || '?');
+    $('#moSb').setAttribute('aria-haspopup', 'menu');
+    $('#moSb').addEventListener('click', function (e) { e.stopPropagation(); menuNho(!$('#menuNho').classList.contains('mo')); });
+    document.addEventListener('click', function (e) {
+      if ($('#menuNho').classList.contains('mo') && !e.target.closest('#menuNho')) menuNho(false);
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') menuNho(false); });
+    window.addEventListener('resize', function () { if ($('#menuNho').classList.contains('mo')) menuNho(true); });
+    $('#mnDs').addEventListener('click', function (e) { if (e.target.closest('.sb-item')) menuNho(false); });
     $('#sbDong').addEventListener('click', dongSb);
     $('#sbNen').addEventListener('click', dongSb);
     $('#sbQuay').addEventListener('click', veMenuSb);
@@ -14469,6 +14531,6 @@ tr.qm-hang-tam td{background:#fffbeb}
 })();
 </script>
 <script src="js/ic-ql.js?v=1"></script>
-<script src="js/nw-thanh.js?v=22"></script>
+<script src="js/nw-thanh.js?v=23"></script>
 </body>
 </html>
