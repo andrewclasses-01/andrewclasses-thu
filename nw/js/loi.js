@@ -22,7 +22,8 @@
 // (Cùng điều kiện với config.js `AC_THU` gốc; trang nw/ không nạp config.js gốc.)
 // Bàn thử dữ liệu giả `?thu=1` / `?thu=thay` trên máy (NW.laBanThu) vẫn mở.
 if (!(/^andrewclasses-01\.github\.io$/.test(location.hostname) || location.port === '8825' ||
-      (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /[?&]thu=(1|thay)(&|$)/.test(location.search)))) {
+      (/^(localhost|127\.0\.0\.1)$/.test(location.hostname) && /[?&]thu=(1|thay)(&|$)/.test(location.search)) ||
+      /\/nw\/tinnhan\.html$/.test(location.pathname))) {   // ⭐ 02/10/2026 thầy chính thức mở TIN NHẮN trên trang thật
   location.replace('../index.html');
   throw new Error('myNetwork chưa mở ở trang này');
 }
@@ -515,6 +516,25 @@ if (!(/^andrewclasses-01\.github\.io$/.test(location.hostname) || location.port 
   // (2) huy hiệu "đã xác minh" kiểu Facebook nhưng MÀU VÀNG — dùng cho thầy (thay chữ THẦY)
   NW.tichHtml = function (lop) {
     return '<svg class="tich-vang' + (lop ? ' ' + lop : '') + '" viewBox="0 0 24 24" aria-label="Đã xác minh"><path fill="currentColor" fill-rule="evenodd" d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.818-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.437 2.25c-.415-.165-.866-.25-1.336-.25-2.11 0-3.818 1.79-3.818 4 0 .494.083.964.237 1.4-1.272.65-2.147 2.018-2.147 3.6 0 1.495.782 2.798 1.942 3.486-.02.17-.032.34-.032.514 0 2.21 1.708 4 3.818 4 .47 0 .92-.086 1.335-.25.62 1.334 1.926 2.25 3.437 2.25 1.512 0 2.818-.916 3.437-2.25.415.163.865.248 1.336.248 2.11 0 3.818-1.79 3.818-4 0-.174-.012-.344-.033-.513 1.158-.687 1.943-1.99 1.943-3.484zm-6.616-3.334l-4.334 6.5c-.145.217-.382.334-.625.334-.143 0-.288-.04-.416-.126l-.115-.094-2.415-2.415c-.293-.293-.293-.768 0-1.06s.768-.294 1.06 0l1.77 1.767 3.825-5.74c.23-.345.696-.436 1.04-.207.346.23.44.696.21 1.04z"/></svg>';
+  };
+  // ⭐ 02/10/2026 — HUY HIỆU NHÓM LỚP: cùng khung răng cưa với tích vàng của thầy, khác chút bên trong (mẫu ?hh=1|2|3 ở bàn thử).
+  //   1 = vàng + ngôi sao trắng · 2 = vàng + hình 2 người · 3 = xanh ngọc + dấu tích
+  NW.HH_LOP = 1;
+  // ⭐ 02/10/2026 — trang THẬT chỉ mở Tin nhắn: link sang trang nw/ khác ⇒ hộp "sắp ra mắt" thay vì bị cổng đá về trang chủ.
+  NW.moDuoc = function (href) { return !!(CFG.LA_THU || NW.laBanThu() || /^(\.\/)?tinnhan\.html/.test(String(href || ''))); };
+  NW.sapRaMat = function (ten) {
+    var p = NW.popMo({ tieuDe: ten || 'Sắp ra mắt', html: '<p style="margin:0;font-weight:600;line-height:1.55">Tính năng này sẽ sớm được ra mắt.<br><span class="tiny">00:00 · Chủ Nhật, 01/11/2026</span></p>',
+      chan: '<button class="btn primary" data-dong>EM SẼ CHỜ!</button>' });
+    $('[data-dong]', p).onclick = NW.popDong;
+  };
+  NW.huyHieuLop = function (lop) {
+    var k = +(NW.thamSo && NW.thamSo('hh')) || NW.HH_LOP;
+    var vien = 'M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.818-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.437 2.25c-.415-.165-.866-.25-1.336-.25-2.11 0-3.818 1.79-3.818 4 0 .494.083.964.237 1.4-1.272.65-2.147 2.018-2.147 3.6 0 1.495.782 2.798 1.942 3.486-.02.17-.032.34-.032.514 0 2.21 1.708 4 3.818 4 .47 0 .92-.086 1.335-.25.62 1.334 1.926 2.25 3.437 2.25 1.512 0 2.818-.916 3.437-2.25.415.163.865.248 1.336.248 2.11 0 3.818-1.79 3.818-4 0-.174-.012-.344-.033-.513 1.158-.687 1.943-1.99 1.943-3.484z';
+    var trong = k === 2
+      ? '<circle cx="9.6" cy="10" r="1.9" fill="#fff"/><circle cx="14.6" cy="10.3" r="1.6" fill="#fff"/><path d="M6.4 16.2c.3-2 1.6-3.1 3.2-3.1s2.9 1.1 3.2 3.1zM12.9 16.2c.1-1.2-.2-2.2-.8-2.9.7-.4 1.5-.5 2.3-.4 1.5.2 2.6 1.3 2.8 3.3z" fill="#fff"/>'
+      : k === 3 ? '<path d="M8.3 12.6l2.5 2.5 4.9-5.4" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+      : '<path d="M12 7.1l1.45 2.95 3.25.47-2.35 2.3.55 3.24L12 14.53l-2.9 1.53.55-3.24-2.35-2.3 3.25-.47z" fill="#fff"/>';
+    return '<svg class="hh-lop k' + k + (lop ? ' ' + lop : '') + '" viewBox="0 0 24 24" aria-label="Nhóm lớp"><title>Nhóm lớp chính thức</title><path fill="currentColor" d="' + vien + '"/>' + trong + '</svg>';
   };
   NW.phamCua = function (ma) { for (var i = 0; i < NW.PHAM.length; i++) if (NW.PHAM[i].ma === ma) return NW.PHAM[i]; return NW.PHAM[0]; };
 

@@ -815,6 +815,36 @@ body.mo-menu .side{transform:none; visibility:visible; transition:transform .3s 
 /* (2) huy hiệu xác minh MÀU VÀNG */
 .tich-vang{width:16px; height:16px; color:#F2A93B; flex:none; vertical-align:-3px}
 .tich-vang.nho{width:13px; height:13px}
+/* 02/10/2026 — huy hiệu NHÓM LỚP (NW.huyHieuLop) + dòng nhóm lớp / thầy / ghi chú cuối danh sách tin nhắn của HS */
+.hh-lop{width:17px; height:17px; flex:none; color:#F2A93B; vertical-align:-3px}
+.hh-lop.k3{color:#0E9F8A}
+.hh-lop.nho{width:14px; height:14px}
+/* 02/10 thầy: trong Tin nhắn tích vàng của thầy và huy hiệu lớp CÙNG CỠ (15px — giữa 13 và 17) */
+.tn-muc .ten .tich-vang, .tn-muc .ten .hh-lop, .tn-phong-dau .ten .tich-vang, .tn-phong-dau .ten .hh-lop, .tn-info-ai .ten .tich-vang, .tn-info-ai .ten .hh-lop{width:15px; height:15px; vertical-align:-3px}
+/* tên trên, tin cuối dưới (trước đây .tt bị luật chung biến thành hàng ngang ⇒ tên cụt "Lớp A…") */
+.tn-muc .tt{display:flex; flex-direction:column; justify-content:center; align-items:stretch; text-align:left; gap:2px}
+.tn-muc .tt .ten,.tn-muc .tt .cuoi{max-width:100%}
+.tn-muc .tt .ten{min-width:0; justify-content:flex-start}
+/* icon NHÓM 4 bóng (avPhong): 3 ảnh + 1 bóng số thành viên */
+.av-4{position:relative; width:52px; height:52px; flex:none}
+/* 02/10 thầy: 4 bóng LỒNG vào nhau (mỗi bóng 62% khung, viền trắng) — bóng 4 = sĩ số cả nhóm */
+.av-4 > .av, .av-4 > .av-so, .tn-muc .av-4 > .av, .tn-phong-dau .av-4 > .av, .tn-info-ai .av-4 > .av{position:absolute; width:62%; height:62%; min-width:0;
+  box-sizing:border-box; border:2px solid #fff; border-radius:50%; box-shadow:none; font-size:9px}
+.av-4 > :nth-child(1){left:0; top:0; z-index:1}
+.av-4 > :nth-child(2){right:0; top:0; z-index:2}
+.av-4 > :nth-child(3){left:0; bottom:0; z-index:3}
+.av-4 > .av-so{right:0; bottom:0; z-index:4; display:grid; place-items:center; background:#EEF1F0; color:var(--ink); font:800 11px/1 var(--sans, inherit)}
+.av-4 > .av .on{display:none}
+.tn-phong-dau .av-4{width:42px; height:42px}
+.tn-phong-dau .av-4 > .av{font-size:7.5px; border-width:1.5px}
+.tn-phong-dau .av-4 > .av-so{font-size:9.5px; border-width:1.5px}
+.tn-info-ai .av-4{width:80px; height:80px; margin:0 auto}
+.tn-info-ai .av-4 > .av{font-size:12px; border-width:3px}
+.tn-info-ai .av-4 > .av-so{font-size:16px; border-width:3px}
+.tn-muc .tn-moi-chu{color:var(--accent); font-weight:700}
+.tn-sap-rieng{display:flex; align-items:center; justify-content:center; gap:7px; margin:10px 14px 14px; padding:11px 12px; border-radius:12px;
+  background:var(--ground); color:var(--muted); font-size:12.5px; font-weight:600; text-align:center}
+.tn-sap-rieng .ic{width:16px; height:16px; flex:none}
 /* (1) icon phạm vi đơn sắc */
 .pham-ky .ic{width:13px; height:13px; stroke-width:2; color:var(--muted)}
 .pham-menu .ky .ic{width:20px; height:20px; color:var(--ink)}
@@ -901,8 +931,21 @@ body.mo-menu .side{transform:none; visibility:visible; transition:transform .3s 
 .tn.mo-info{grid-template-columns:340px minmax(0,1fr) 300px}
 .tn-ds-dau{padding:14px 14px 6px}
 .tn-ds-dau h2{font-size:20px}
-.tn-ds-dau .nut-tron{width:36px; height:36px; background:var(--ground); color:var(--ink)}
-.tn-ds-dau .nut-tron.dam{background:var(--accent-soft); color:var(--accent)}
+/* 02/10/2026 thầy: 2 nút đầu danh sách CHỈ icon, không nền vuông */
+.tn-ds-dau .nut-tron{width:36px; height:36px; background:none; color:var(--ink); box-shadow:none}
+.tn-ds-dau .nut-tron.dam{background:none; color:var(--accent)}
+.tn-ds-dau .nut-tron:hover{background:none; color:var(--accent)}
+.tn-ds-dau .nut-tron .ic{width:22px; height:22px}
+/* khung giữa khi chưa mở phòng */
+.tn-chao{display:flex; flex-direction:column; align-items:center; gap:6px; padding:30px 24px}
+.tn-chao-ic{width:84px; height:84px; border-radius:50%; display:grid; place-items:center; background:var(--accent-soft); color:var(--accent); margin-bottom:10px}
+.tn-chao .tn-chao-ic .ic{width:40px; height:40px; margin:0; color:var(--accent); stroke-width:1.7}
+.tn-chao b{font-size:18px; font-weight:800; color:var(--ink)}
+.tn-chao span:not(.tn-chao-ic){font-size:14px; font-weight:500; color:var(--muted); max-width:300px; line-height:1.5}
+.tn-chao-nut{margin-top:14px; display:inline-flex; align-items:center; gap:8px; padding:10px 20px; border:0; border-radius:999px;
+  background:var(--accent); color:#fff; font:700 14px/1 var(--sans, inherit); cursor:pointer}
+.tn-chao-nut:hover{filter:brightness(1.08)}
+.tn-chao .tn-chao-nut .ic{width:17px; height:17px; margin:0; color:#fff; stroke-width:2.1}
 .tn-tim{padding:4px 12px 8px}
 .tn-tim .tim-o{display:flex; align-items:center; gap:8px; padding:0 12px; border-radius:999px; background:var(--ground); color:var(--muted)}
 .tn-tim .tim-o .ic{width:17px; height:17px; flex:none}
@@ -916,6 +959,8 @@ body.mo-menu .side{transform:none; visibility:visible; transition:transform .3s 
 .tn-muc .cuoi{font-size:12.5px}
 .tn-muc .cuoi .gio{font-size:12px; color:var(--muted); font-weight:600}
 .tn-muc.chua .ten,.tn-muc.chua .cuoi{color:var(--ink); font-weight:800}
+/* 02/10 thầy: dòng dưới tên (tin cuối) chữ THƯỜNG, không đậm — tin chưa đọc chỉ đậm màu chữ + chấm xanh */
+.tn-muc .cuoi, .tn-muc.chua .cuoi, .tn-muc .cuoi .gio, .tn-muc .tn-moi-chu{font-weight:400}
 .tn-muc .cham{width:10px; height:10px; background:var(--accent)}
 .tn-muc.chon{background:var(--accent-soft)}
 /* khung phòng */

@@ -153,7 +153,8 @@
           if (NW.laBanThu()) { t.id = 'm' + Date.now(); c.datTin(c.tin().concat([t])); }
         });
       },
-      guiAnh: function (file) {
+      // ⭐ 02/10/2026 thầy chốt: CHỈ THẦY gửi ảnh (HS không có nút ảnh / Ctrl+V / kéo thả)
+      guiAnh: !toi.laThay ? null : function (file) {
         return NW.nenAnh(file, { canhDai: 1280 }).then(function (blob) { return NW.laBanThu() ? URL.createObjectURL(blob) : NW.taiAnh(blob, NW.tenAnhMoi('_t')); });
       },
       xemAnh: function (url) { NW.xemAnh(url, c.tin().filter(function (x) { return x.hinh && !x.thuHoi; }).map(function (x) { return x.hinh; })); },
@@ -201,24 +202,40 @@
     var UI = null;   // ⭐ web v1.198.0 — khuôn chat Zalo của phòng đang mở (Chat.taoKhuon)
     var timChu = '';
     hop.className = 'card tn';
+    // ⭐ 02/10/2026 thầy chốt: HS chưa có chat riêng ⇒ danh sách = NHÓM LỚP (mọi lớp em học, huy hiệu) + Thầy Andrew + dòng "sẽ sớm được bật"
+    var CHO_RIENG = !!(toi.laThay || CFG.BAT_CHAT_RIENG);
+    var IC_LUI = '<svg class="ic" viewBox="0 0 24 24" style="stroke-width:2.4"><path d="M15 5l-7 7 7 7"/></svg>';   // 02/10 thầy: nút quay lại (điện thoại) = dấu <
+    // ⭐ 02/10/2026 thầy chốt: NHÓM LỚP = CHÍNH CHAT LỚP myLesson (kho classChat, js/chat.js AWChat) — nhắn ở đây thì trang lớp/khóa/dashboard
+    //   thấy ngay và ngược lại. Phòng lớp là phòng "ảo" (id 'lop:<mã lớp>', _lop:true): thành viên = danh sách lớp trong lop.json.
+    var PHONG_LOP = [], MA_TOI = '', DS_LOP = [];
+    var CO_CN = !!(CFG.LA_THU || NW.laBanThu());   // trang thật: trang cá nhân chưa mở ⇒ không đặt link
+    var THAY = [];   // hồ sơ thầy (để luôn có dòng "Thầy Andrew" kể cả khi chưa nhắn lần nào)
+    // 02/10/2026 thầy: khung giữa khi chưa mở phòng = icon tròn lớn + tiêu đề + 1 dòng hướng dẫn + nút "Nhắn tin mới" (bấm = nút ✎)
+    var TRONG_PHONG = '<div class="tn-trong tn-chao"><span class="tn-chao-ic">' + IC.tinNhan + '</span><b>Tin nhắn của ' + (toi.laThay ? 'thầy' : 'em') + '</b>' +
+      '<span>' + (CHO_RIENG ? 'Chọn một cuộc trò chuyện bên trái để xem tin nhắn.' : 'Chọn nhóm lớp hoặc Thầy Andrew bên trái để trò chuyện.') + '</span>' +
+      (CHO_RIENG ? '<button type="button" class="tn-chao-nut" data-tn-moi>' + IC.sua + 'Nhắn tin mới</button>' : '') + '</div>';
     hop.innerHTML =
       '<div class="tn-ds"><div class="tn-ds-dau"><h2>Tin nhắn</h2>' +
         (toi.laThay ? '<button class="nut-tron" id="tnNhom" title="Tạo nhóm chat" aria-label="Tạo nhóm chat">' + IC.nhom + '</button>' : '') +   // v16: HS không tạo nhóm
-        '<button class="nut-tron dam" id="tnMoi" title="Nhắn tin mới" aria-label="Nhắn tin mới">' + IC.sua + '</button></div>' +
+        (CHO_RIENG ? '<button class="nut-tron dam" id="tnMoi" title="Nhắn tin mới" aria-label="Nhắn tin mới">' + IC.sua + '</button>' : '') + '</div>' +
         '<div class="tn-tim"><span class="tim-o">' + IC.timKiem + '<input type="search" id="tnTim" placeholder="Tìm trong tin nhắn"></span></div>' +
         '<div class="tn-ds-cuon" id="tnDs"><div class="tn-trong">Đang tải…</div></div></div>' +
-      '<div class="tn-phong" id="tnPhong"><div class="tn-trong">' + IC.tinNhan + 'Chọn một cuộc trò chuyện,<br>hoặc bấm ' + IC.sua + ' để nhắn cho bạn.</div></div>' +
+      '<div class="tn-phong" id="tnPhong">' + TRONG_PHONG + '</div>' +
       '<aside class="tn-info" id="tnInfo" hidden></aside>';
     var khuDs = $('#tnDs', hop), khuPhong = $('#tnPhong', hop), khuInfo = $('#tnInfo', hop);
     $('#tnTim', hop).addEventListener('input', function () { timChu = NW.khongDau(this.value.trim().toLowerCase()); veDs(); });
 
     function nguoiKia(p) { var k = (p.thanhVien || []).filter(function (u) { return u !== toi.uid; })[0] || toi.uid; return Object.assign({ uid: k }, (p.tv || {})[k] || { ten: '?' }); }
     function tenPhong(p) { return p.loai === 'nhom' ? (p.ten || 'Nhóm') : nguoiKia(p).ten || '?'; }
+    function laNhomLop(p) { return p.loai === 'nhom' && !!p.lop; }
     function avPhong(p, lop) {
+      // ⭐ 02/10/2026 thầy chốt: icon NHÓM = 4 bóng (2×2) — bóng 1-2-3 là ảnh thành viên (ưu tiên người có ảnh), bóng 4 = tổng số thành viên
       if (p.loai === 'nhom') {
-        var khac = (p.thanhVien || []).filter(function (u) { return u !== toi.uid; });
-        var tvs = khac.concat([toi.uid]).slice(0, 2).map(function (u) { return u === toi.uid ? toi : ((p.tv || {})[u] || { ten: '?' }); });
-        return '<span class="av-nhom' + (lop ? ' ' + lop : '') + '">' + tvs.map(function (t) { return NW.avHtml(t); }).join('') + '</span>';
+        var tv = p.tv || {}, ds = (p.thanhVien || []).filter(function (u) { return u !== toi.uid; });
+        ds.sort(function (a, b) { return ((tv[b] || {}).anh ? 1 : 0) - ((tv[a] || {}).anh ? 1 : 0); });
+        var ba = ds.slice(0, 3).map(function (u) { return NW.avHtml(Object.assign({}, tv[u] || { ten: '?' }, { online: false, hoatDongLuc: 0 })); }).join('');
+        var so = p.soThanhVien || (p.thanhVien || []).length;
+        return '<span class="av-4' + (lop ? ' ' + lop : '') + '" title="' + so + ' thành viên">' + ba + '<span class="av-so">' + (so > 99 ? '99+' : so) + '</span></span>';
       }
       return NW.avHtml(nguoiKia(p), lop);
     }
@@ -234,27 +251,48 @@
 
     // ---------- danh sách phòng ----------
     // v16: nhóm (thầy tạo) luôn đứng ĐẦU danh sách; cuộc em đã "xoá" (anLuc[em] >= capNhat) thì giấu tới khi có tin mới
+    // 02/10: NHÓM LỚP luôn đứng trên cùng (theo thứ tự lớp của em), rồi nhóm khác, rồi cuộc riêng.
+    //   HS chưa bật chat riêng: chỉ nhóm lớp + cuộc với thầy (chưa có thì dòng chờ `_cho`), thầy ở DƯỚI CÙNG.
+    function hangPhong(p) { return laNhomLop(p) ? 0 : p.loai === 'nhom' ? 1 : 2; }
+    function thuTuLop(p) { if (p._thuTu != null) return p._thuTu; var i = (toi.cacLop || [toi.lop]).indexOf(p.lop); return i < 0 ? 99 : i; }
+    function laVoiThay(p) { return p.loai !== 'nhom' && nguoiKia(p).vaiTro === 'gv'; }
     function xepPhong(ds) {
-      return ds.filter(function (p) { return !(((p.anLuc || {})[toi.uid] || 0) >= (p.capNhat || 0)); })
-        .sort(function (a, b) { var na = a.loai === 'nhom' ? 0 : 1, nb = b.loai === 'nhom' ? 0 : 1; return na - nb || (b.capNhat || 0) - (a.capNhat || 0); });
+      ds = ds.filter(function (p) { return laNhomLop(p) || !(((p.anLuc || {})[toi.uid] || 0) >= (p.capNhat || 0)); });
+      if (!CHO_RIENG) {
+        ds = ds.filter(function (p) { return laNhomLop(p) || laVoiThay(p); });
+        THAY.forEach(function (t) {
+          var id = Chat.maRieng(toi.uid, t.uid);
+          if (!ds.some(function (p) { return p.id === id || (laVoiThay(p) && nguoiKia(p).uid === t.uid); })) { var tv = {}; tv[t.uid] = NW.tomTat(t); ds.push({ id: id, loai: 'rieng', thanhVien: [toi.uid, t.uid], tv: tv, tinCuoi: null, docLuc: {}, _cho: t }); }
+        });
+      }
+      return ds.sort(function (a, b) {
+        if (!CHO_RIENG) { var ta = laVoiThay(a) ? 1 : 0, tb = laVoiThay(b) ? 1 : 0; if (ta !== tb) return ta - tb; }
+        return hangPhong(a) - hangPhong(b) || (laNhomLop(a) && laNhomLop(b) ? thuTuLop(a) - thuTuLop(b) : 0) || (b.capNhat || 0) - (a.capNhat || 0);
+      });
     }
+    var _phongCho = {};
     function tatTB(p) { return !!((p.tat || {})[toi.uid]); }
     function veDs() {
-      var ds = xepPhong(PHONG).filter(function (p) { return !timChu || NW.khongDau(tenPhong(p).toLowerCase()).indexOf(timChu) >= 0; });
-      if (!ds.length) { khuDs.innerHTML = '<div class="tn-trong">' + (timChu ? 'Không thấy cuộc trò chuyện nào.' : 'Chưa có cuộc trò chuyện nào.<br>Bấm ✎ để nhắn cho bạn cùng lớp hoặc thầy.') + '</div>'; return; }
+      var ds = xepPhong(PHONG.filter(function (p) { return !(PHONG_LOP.length && p.lop); }).concat(PHONG_LOP)).filter(function (p) { return !timChu || NW.khongDau(tenPhong(p).toLowerCase()).indexOf(timChu) >= 0; });
+      var ghiChu = CHO_RIENG || timChu ? '' : '<div class="tn-sap-rieng">' + IC.khoa + 'Tính năng chat riêng sẽ sớm được bật.</div>';
+      if (!ds.length) { khuDs.innerHTML = '<div class="tn-trong">' + (timChu ? 'Không thấy cuộc trò chuyện nào.' : 'Chưa có cuộc trò chuyện nào.') + '</div>' + ghiChu; return; }
+      _phongCho = {};
       khuDs.innerHTML = ds.map(function (p) {
+        if (p._cho) _phongCho[p.id] = p;
         var tc = p.tinCuoi || {}, chua = chuaDoc(p);
-        var cuoi = tc.luc ? ((tc.uid === toi.uid ? 'Em: ' : (p.loai === 'nhom' ? (tc.ten || '').split(' ').pop() + ': ' : '')) + (tc.chu || (tc.hinh ? '📷 Ảnh' : ''))) : 'Bắt đầu trò chuyện';
-        return '<div class="tn-muc' + (p.id === chon ? ' chon' : '') + (chua ? ' chua' : '') + (p.loai === 'nhom' ? ' nhom' : '') + '" data-id="' + an(p.id) + '" role="button" tabindex="0">' + avPhong(p) +
-          '<span class="tt"><span class="ten">' + an(tenPhong(p)) + (p.loai !== 'nhom' ? tichNeuThay(nguoiKia(p)) : '') + (tatTB(p) ? '<span class="tat" title="Đã tắt thông báo">' + IC.chuongTat + '</span>' : '') + '</span>' +
-          '<span class="cuoi">' + an(cuoi) + '<span class="gio"> · ' + an(gioNgan(tc.luc || p.capNhat)) + '</span></span></span>' +
+        var cuoi = tc.luc ? ((tc.uid === toi.uid ? (toi.laThay ? 'Thầy: ' : 'Em: ') : (p.loai === 'nhom' ? (tc.ten || '').split(' ').pop() + ': ' : '')) + (tc.chu || (tc.hinh ? '📷 Ảnh' : ''))) : '';
+        var cuoiHtml = cuoi ? an(cuoi) + '<span class="gio"> · ' + an(gioNgan(tc.luc || p.capNhat)) + '</span>' : '<span class="tn-moi-chu">' + (laVoiThay(p) ? 'Nhắn cho thầy' : 'Bắt đầu trò chuyện') + '</span>';
+        return '<div class="tn-muc' + (p.id === chon ? ' chon' : '') + (chua ? ' chua' : '') + (p.loai === 'nhom' ? ' nhom' : '') + (laNhomLop(p) ? ' lop' : '') + '" data-id="' + an(p.id) + '" role="button" tabindex="0">' + avPhong(p) +
+          '<span class="tt"><span class="ten">' + an(tenPhong(p)) + (laNhomLop(p) ? NW.huyHieuLop() : p.loai !== 'nhom' ? tichNeuThay(nguoiKia(p)) : '') + (tatTB(p) ? '<span class="tat" title="Đã tắt thông báo">' + IC.chuongTat + '</span>' : '') + '</span>' +
+          '<span class="cuoi">' + cuoiHtml + '</span></span>' +
           (chua ? '<span class="cham"></span>' : '') +
-          '<button type="button" class="menu" data-menu aria-label="Tuỳ chọn" title="Tuỳ chọn">' + IC.baCham + '</button></div>';
-      }).join('');
+          (p._cho ? '' : '<button type="button" class="menu" data-menu aria-label="Tuỳ chọn" title="Tuỳ chọn">' + IC.baCham + '</button>') + '</div>';
+      }).join('') + ghiChu;
       $$('.tn-muc', khuDs).forEach(function (row) {
         var id = row.getAttribute('data-id'), giu = null, daGiu = false;
         row.onclick = function (e) { if (e.target.closest('[data-menu]')) return; if (daGiu) { daGiu = false; return; } moPhong(id); };
         row.onkeydown = function (e) { if (e.key === 'Enter') moPhong(id); };
+        if (_phongCho[id]) { row.onclick = function () { moCho(_phongCho[id]); }; row.onkeydown = function (e) { if (e.key === 'Enter') moCho(_phongCho[id]); }; return; }
         $('[data-menu]', row).onclick = function (e) { e.stopPropagation(); menuCuoc(this, id); };
         // điện thoại: GIỮ 450ms = mở menu
         row.addEventListener('pointerdown', function (e) { if (e.target.closest('button')) return; daGiu = false; giu = setTimeout(function () { daGiu = true; menuCuoc($('[data-menu]', row), id); }, 450); });
@@ -263,15 +301,21 @@
         row.addEventListener('contextmenu', function (e) { e.preventDefault(); });
       });
     }
+    // dòng "Thầy Andrew" chưa có cuộc ⇒ bấm mới tạo phòng riêng với thầy
+    async function moCho(p) {
+      try { var t = p._cho; var id = await Chat.moRieng(t); var pMoi = Object.assign({}, p, { id: id, tv: Object.assign({}, p.tv) }); delete pMoi._cho; pMoi.tv[toi.uid] = NW.tomTat(toi); moPhong(id, pMoi); }
+      catch (e) { NW.toast(NW.chuLoiKho(e), true); }
+    }
     // ---------- v16: menu từng cuộc chat (⋯ máy tính / giữ điện thoại) ----------
     function menuCuoc(nut, id) {
-      var p = PHONG.filter(function (x) { return x.id === id; })[0]; if (!p) return;
+      var p = timPhong(id); if (!p) return;
+      if (p._lop) { NW.menuNho(nut, [{ ic: IC.nhom, chu: 'Xem thành viên', onclick: function () { xemThanhVien(p); } }]); return; }
       var chua = chuaDoc(p), tat = tatTB(p), items = [];
       items.push({ ic: chua ? IC.daDoc : IC.chuaDoc, chu: chua ? 'Đánh dấu đã đọc' : 'Đánh dấu chưa đọc', onclick: function () { danhDauChuaDoc(p, !chua); } });
       items.push({ ic: tat ? IC.chuongBat : IC.chuongTat, chu: tat ? 'Bật thông báo' : 'Tắt thông báo', onclick: function () { datTat(p, !tat); } });
       if (p.loai === 'nhom') items.push({ ic: IC.nhom, chu: 'Xem thành viên', onclick: function () { xemThanhVien(p); } });
-      else items.push({ ic: IC.caNhan, chu: 'Xem trang cá nhân', onclick: function () { NW.di('canhan.html?uid=' + nguoiKia(p).uid); } });
-      if (p.loai !== 'nhom') items.push({ ic: IC.xoa, chu: 'Xoá đoạn chat', nguy: true, onclick: function () { xoaCuoc(p); } });
+      else if (CHO_RIENG && CO_CN) items.push({ ic: IC.caNhan, chu: 'Xem trang cá nhân', onclick: function () { NW.di('canhan.html?uid=' + nguoiKia(p).uid); } });
+      if (p.loai !== 'nhom' && CHO_RIENG) items.push({ ic: IC.xoa, chu: 'Xoá đoạn chat', nguy: true, onclick: function () { xoaCuoc(p); } });
       items.push({ ic: IC.baoCao, chu: 'Báo cáo', onclick: function () { baoCaoCuoc(p); } });
       NW.menuNho(nut, items);
     }
@@ -283,7 +327,7 @@
     function danhDauChuaDoc(p, chua) {
       var moc = chua ? ((p.tinCuoi || {}).luc || p.capNhat || 1) - 1 : Date.now();
       var patch = {}; patch['docLuc.' + toi.uid] = moc; patch['chuaDoc.' + toi.uid] = chua;
-      if (chua && chon === p.id) { hop.classList.remove('mo-phong'); chon = ''; dongInfo(); khuPhong.innerHTML = '<div class="tn-trong">' + IC.tinNhan + 'Chọn một cuộc trò chuyện.</div>'; }
+      if (chua && chon === p.id) { hop.classList.remove('mo-phong'); chon = ''; dongInfo(); khuPhong.innerHTML = TRONG_PHONG; }
       capNhatPhong(p, patch, function () { p.docLuc = p.docLuc || {}; p.docLuc[toi.uid] = moc; p.chuaDoc = p.chuaDoc || {}; p.chuaDoc[toi.uid] = chua; });
     }
     function datTat(p, tat) {
@@ -294,7 +338,7 @@
     async function xoaCuoc(p) {
       if (!(await NW.hoi('Xoá đoạn chat?', 'Đoạn chat sẽ biến mất khỏi danh sách của em (bạn kia vẫn giữ). Có tin mới thì nó hiện lại.', { ok: 'Xoá', nguy: true }))) return;
       var moc = Date.now(); var patch = {}; patch['anLuc.' + toi.uid] = moc;
-      if (chon === p.id) { hop.classList.remove('mo-phong'); chon = ''; dongInfo(); khuPhong.innerHTML = '<div class="tn-trong">' + IC.tinNhan + 'Chọn một cuộc trò chuyện.</div>'; }
+      if (chon === p.id) { hop.classList.remove('mo-phong'); chon = ''; dongInfo(); khuPhong.innerHTML = TRONG_PHONG; }
       capNhatPhong(p, patch, function () { p.anLuc = p.anLuc || {}; p.anLuc[toi.uid] = moc; });
     }
     function baoCaoCuoc(p) {
@@ -318,34 +362,35 @@
 
     // ---------- khung phòng ----------
     function phuPhong(p) {
-      if (p.loai === 'nhom') return (p.thanhVien || []).length + ' thành viên';
+      if (p.loai === 'nhom') return (laNhomLop(p) ? 'Nhóm lớp · ' : '') + (p.soThanhVien || (p.thanhVien || []).length) + ' thành viên';
       var k = nguoiKia(p);
       return k.vaiTro === 'gv' ? 'Thầy' : (NW.dangOnline(k) ? 'Đang hoạt động' : (k.lop ? 'Lớp ' + k.lop : ''));
     }
     function veKhungPhong(p) {
       khuPhong.innerHTML =
-        '<div class="tn-phong-dau"><button class="nut-tron lui" id="tnLui" aria-label="Quay lại">' + IC.lui + '</button>' + avPhong(p) +
-        '<div class="ai"><div class="ten">' + an(tenPhong(p)) + (p.loai !== 'nhom' ? tichNeuThay(nguoiKia(p)) : '') + '</div><div class="phu">' + an(phuPhong(p)) + '</div></div>' +
+        '<div class="tn-phong-dau"><button class="nut-tron lui" id="tnLui" aria-label="Quay lại">' + IC_LUI + '</button>' + avPhong(p) +
+        '<div class="ai"><div class="ten">' + an(tenPhong(p)) + (laNhomLop(p) ? NW.huyHieuLop() : p.loai !== 'nhom' ? tichNeuThay(nguoiKia(p)) : '') + '</div><div class="phu">' + an(phuPhong(p)) + '</div></div>' +
         '<button class="nut-tron" id="tnInfoNut" aria-label="Thông tin" title="Thông tin cuộc trò chuyện">' + IC.thongTin + '</button></div>' +
         '<div class="tn-cuon" id="tnCuon"></div>' +
         '<div class="tn-nhap-khu" id="tnChan"></div>';   // ⭐ web v1.198.0 — ô nhập khuôn chat Zalo (ChatUI dựng)
       hop.classList.add('mo-phong');
       $('#tnLui', khuPhong).onclick = function () { hop.classList.remove('mo-phong'); chon = ''; dongInfo(); veDs(); };
       // ⭐ web v1.198.0 — mỗi lần dựng lại khung phòng thì dựng khuôn mới gắn vào khung cuộn + ô nhập mới (khuôn lo trả lời/emoji/sticker/ảnh)
-      UI = Chat.taoKhuon({
+      if (p._lop) UI = taoKhuonLop(p, $('#tnCuon', khuPhong), $('#tnChan', khuPhong));
+      else UI = Chat.taoKhuon({
         khung: $('#tnCuon', khuPhong), chan: $('#tnChan', khuPhong), idNhap: 'tnO',
         phong: function () { return nguoiHienTai || {}; },
         tin: function () { return TIN; },
         datTin: function (ds) { TIN = ds; veTin(); },
         dau: function () { return !hetCu && TIN.length >= 30 ? '<button class="bl-them" id="tnCu" type="button" style="align-self:center;padding:6px 12px;margin-bottom:6px">Xem tin cũ hơn</button>' : ''; }
       });
-      $('#tnCuon', khuPhong).addEventListener('click', function (e) { if (e.target.closest('#tnCu')) taiCu(); });
+      $('#tnCuon', khuPhong).addEventListener('click', function (e) { if (e.target.closest('#tnCu')) { if (p._lop) taiCuLop(p); else taiCu(); } });
       $('#tnInfoNut', khuPhong).onclick = function () { if (khuInfo.hidden) moInfo(p); else dongInfo(); };
     }
 
     // ---------- tin nhắn — ⭐ web v1.198.0: vẽ bằng khuôn chung (Chat.taoKhuon ⇒ ../js/chat-ui.js) ----------
     //   Cảm xúc / trả lời / menu ⋯ / thu hồi / giữ tin trên điện thoại: khuôn lo hết (xem Chat.taoKhuon ở trên).
-    function veTin() { if (UI && $('#tnCuon', khuPhong)) UI.veKho(); }
+    function veTin() { if (UI && $('#tnCuon', khuPhong)) { if (UI.laLop) UI.ve(TIN, !hetCu && TIN.length >= 30 ? '<button class="bl-them" id="tnCu" type="button" style="align-self:center;padding:6px 12px;margin-bottom:6px">Xem tin cũ hơn</button>' : ''); else UI.veKho(); } }
 
 
     // ---------- bảng thông tin (cột phải / phủ trên điện thoại) ----------
@@ -354,12 +399,12 @@
       var k = p.loai !== 'nhom' ? nguoiKia(p) : null;
       khuInfo.hidden = false; hop.classList.add('mo-info');
       khuInfo.innerHTML = '<div class="tn-info-dau"><button class="nut-tron" data-dong aria-label="Đóng">' + IC.dong + '</button></div>' +
-        '<div class="tn-info-ai">' + avPhong(p, 'to') + '<div class="ten">' + an(tenPhong(p)) + (k ? tichNeuThay(k) : '') + '</div><div class="phu">' + an(phuPhong(p)) + '</div>' +
-          (k ? '<a class="btn soft nho" href="canhan.html?uid=' + an(k.uid) + '">' + IC.caNhan + 'Trang cá nhân</a>' : '<button class="btn soft nho" type="button" data-tv>' + IC.nhom + 'Thành viên (' + (p.thanhVien || []).length + ')</button>') + '</div>' +
+        '<div class="tn-info-ai">' + avPhong(p, 'to') + '<div class="ten">' + an(tenPhong(p)) + (laNhomLop(p) ? NW.huyHieuLop() : k ? tichNeuThay(k) : '') + '</div><div class="phu">' + an(phuPhong(p)) + '</div>' +
+          (k ? (CHO_RIENG && CO_CN ? '<a class="btn soft nho" href="canhan.html?uid=' + an(k.uid) + '">' + IC.caNhan + 'Trang cá nhân</a>' : '') : '<button class="btn soft nho" type="button" data-tv>' + IC.nhom + 'Thành viên (' + (p.thanhVien || []).length + ')</button>') + '</div>' +
         '<div class="tn-info-muc"><h4>Ảnh đã gửi</h4>' + (anhDs.length ? '<div class="tn-info-anh">' + anhDs.slice(0, 12).map(function (u) { return '<button type="button" data-anh="' + an(u) + '"><img src="' + an(u) + '" alt="" loading="lazy"></button>'; }).join('') + '</div>' : '<div class="tiny">Chưa có ảnh nào.</div>') + '</div>' +
-        (p.loai === 'nhom' ? '<div class="tn-info-muc"><h4>Nhóm</h4><div class="tn-info-nut">' +
+        (p.loai === 'nhom' && !p._lop ? '<div class="tn-info-muc"><h4>Nhóm</h4><div class="tn-info-nut">' +
           ((p.taoBoi === toi.uid || toi.laThay) ? '<button type="button" data-them>' + IC.them + 'Thêm thành viên</button><button type="button" data-doiten>' + IC.sua + 'Đổi tên nhóm</button>' : '') +
-          (toi.laThay ? '<button type="button" class="nguy" data-roi>' + IC.thoat + 'Rời nhóm</button>' : '<div class="tiny" style="padding:6px 10px">Nhóm do thầy lập — em ở trong nhóm này.</div>') + '</div></div>' : '');   // v16: HS không rời nhóm
+          (toi.laThay ? '<button type="button" class="nguy" data-roi>' + IC.thoat + 'Rời nhóm</button>' : '<div class="tiny" style="padding:6px 10px">' + (laNhomLop(p) ? 'Nhóm chính thức của lớp — cả lớp và thầy ở đây.' : 'Nhóm do thầy lập — em ở trong nhóm này.') + '</div>') + '</div></div>' : '');   // v16: HS không rời nhóm
       $('[data-dong]', khuInfo).onclick = dongInfo;
       $$('[data-anh]', khuInfo).forEach(function (b) { b.onclick = function () { NW.xemAnh(b.getAttribute('data-anh'), anhDs); }; });
       var tv = $('[data-tv]', khuInfo); if (tv) tv.onclick = function () { xemThanhVien(p); };
@@ -371,11 +416,12 @@
 
     async function moPhong(id, pTruoc) {
       chon = id; veDs(); dongInfo();
-      var p = PHONG.filter(function (x) { return x.id === id; })[0] || pTruoc;
+      var p = timPhong(id) || pTruoc;
       if (!p) return;
       nguoiHienTai = p; TIN = []; hetCu = false;
       if (dungNghe) { try { dungNghe(); } catch (e) { } dungNghe = null; }
       veKhungPhong(p);
+      if (p._lop) { moPhongLop(p); return; }
       if (NW.laBanThu()) { TIN = tinMau(p); veTin(); if ((p.chuaDoc || {})[toi.uid]) { p.chuaDoc[toi.uid] = false; p.docLuc = p.docLuc || {}; p.docLuc[toi.uid] = Date.now(); veDs(); } return; }
       var f = await NW.fb();
       var q = f.fs.query(f.fs.collection(f.db, 'nwChats', id, 'tin'), f.fs.orderBy('luc', 'desc'), f.fs.limit(30));
@@ -418,13 +464,14 @@
         if (toi.laThay) items.push({ ic: IC.thoat, chu: 'Rời nhóm', nguy: true, onclick: function () { roiNhom(p); } });   // v16: HS không rời nhóm
       } else {
         var k = (p.thanhVien || []).filter(function (u) { return u !== toi.uid; })[0];
-        items.push({ ic: IC.caNhan, chu: 'Xem trang cá nhân', onclick: function () { NW.di('canhan.html?uid=' + k); } });
+        if (CO_CN) items.push({ ic: IC.caNhan, chu: 'Xem trang cá nhân', onclick: function () { NW.di('canhan.html?uid=' + k); } });
       }
       NW.menuNho(nut, items);
     }
     function xemThanhVien(p) {
-      NW.popMo({ tieuDe: 'Thành viên nhóm', html: '<div class="ds-nguoi">' + (p.thanhVien || []).map(function (u) {
+      NW.popMo({ tieuDe: p._lop ? 'Thành viên lớp' : 'Thành viên nhóm', html: '<div class="ds-nguoi">' + (p.thanhVien || []).map(function (u) {
         var t = (p.tv || {})[u] || { ten: '?' };
+        if (p._lop || !CO_CN) return '<div class="nguoi">' + NW.avHtml(t, 'nho') + '<span><span class="ten">' + an(t.ten) + '</span><br><span class="lop">' + an(t.lop || '') + '</span></span></div>';
         return '<a class="nguoi" href="canhan.html?uid=' + an(u) + '">' + NW.avHtml(t, 'nho') + '<span><span class="ten">' + an(t.ten) + '</span><br><span class="lop">' + an(t.lop || '') + (u === p.taoBoi ? ' · người tạo' : '') + '</span></span></a>';
       }).join('') + '</div>' });
     }
@@ -485,7 +532,7 @@
       if (nhieu) { $('[data-dong]', pop).onclick = NW.popDong; $('#cnOk', pop).onclick = function () { NW.popDong(); xong(ds.filter(function (n) { return daChon[n.uid]; })); }; }
       return pop;
     }
-    $('#tnMoi', hop).onclick = async function () {
+    if ($('#tnMoi', hop)) $('#tnMoi', hop).onclick = async function () {
       var ds = await Chat.nguoiNhanDuoc();
       chonNguoi('Nhắn tin cho ai?', ds, false, async function (c) {
         var n = c[0]; if (!n) return;
@@ -493,6 +540,7 @@
         catch (e) { NW.toast(NW.chuLoiKho(e), true); }
       });
     };
+    khuPhong.addEventListener('click', function (e) { if (e.target.closest('[data-tn-moi]')) $('#tnMoi', hop).onclick(); });   // nút "Nhắn tin mới" giữa khung
     if ($('#tnNhom', hop)) $('#tnNhom', hop).onclick = async function () {
       var ds = await Chat.nguoiNhanDuoc();
       var pop = chonNguoi('Tạo nhóm chat', ds, true, async function (chonDs) {
@@ -513,11 +561,144 @@
       var tenTam = 'Nhóm của ' + toi.ten;
     };
 
+    if (!CHO_RIENG) {
+      (NW.laBanThu() ? Promise.resolve([{ uid: 'gv', ten: 'Thầy Andrew', lop: 'GV', vaiTro: 'gv', anh: 'assets/avatar-tron.jpg' }]) : NW.dsThay())
+        .then(function (ds) { THAY = (ds || []).slice(0, 1); veDs(); }).catch(function () { });
+    }
+    // ============================================================
+    // ⭐ 02/10/2026 — NHÓM LỚP = CHAT LỚP (classChat). Mã gửi tin = claim `ma` của phiên (luật đòi token.ma == code); thầy = 'GV'.
+    //   Tin cuối mỗi lớp: 1 lượt đọc/lớp khi mở trang. "Đã xem" trên máy dùng CHUNG khoá với trang lớp (mylesson_xemtin_<lớp>_<mã>)
+    //   ⇒ đọc ở đây là chấm đỏ trang lớp cũng tắt.
+    // ============================================================
+    function timPhong(id) { return PHONG.concat(PHONG_LOP).filter(function (x) { return x.id === id; })[0]; }
+    function avKhongDau(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase(); }
+    function avUrl(tenGoc, ten) {   // ⛔ chép y js/chung.js avUrl (slug phải khớp từng ký tự)
+      return CFG.GOC_DL + 'assets/avatar/' + (avKhongDau(tenGoc).replace(/[^a-z0-9]/g, '') || 'lop') + '/' + (avKhongDau(ten).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'hs') + '.jpg';
+    }
+    function khoaXem(lop) { return 'mylesson_xemtin_' + lop + '_' + MA_TOI; }
+    function docXem(lop) { try { return Number(localStorage.getItem(khoaXem(lop))) || 0; } catch (e) { return 0; } }
+    function ghiXemMay(p, luc) {
+      if (!(luc > 0) || !MA_TOI) return;
+      try { if (luc > docXem(p.lop)) localStorage.setItem(khoaXem(p.lop), String(luc)); } catch (e) { }
+      p.docLuc = p.docLuc || {}; if (luc > (p.docLuc[toi.uid] || 0)) { p.docLuc[toi.uid] = luc; veDs(); }
+    }
+    function tenLopHien(l) { var g = String(l.tenGoc || l.maLop || ''); return /[a-z]{3,}/i.test(avKhongDau(g)) ? g : 'Lớp ' + g; }
+    function uidTin(t) { return t.ma && t.ma === MA_TOI ? toi.uid : (t.vaiTro === 'gv' ? 'm:GV' : 'm:' + (t.ma || '?')); }
+    async function napPhongLop() {
+      // bàn thử trên máy: `&lopthat=1` ⇒ ĐỌC chat lớp thật (không có phiên ⇒ không gửi được) để kiểm danh sách / tin cuối / mở phòng
+      if (!window.AWChat || (NW.laBanThu() && !/[?&]lopthat=1(&|$)/.test(location.search))) return;
+      try {
+        if (NW.laBanThu()) MA_TOI = '';
+        else if (toi.laThay) MA_TOI = 'GV';
+        else { var cl = (await toi.user.getIdTokenResult()).claims || {}; MA_TOI = String(cl.ma || ''); }
+        var dl = await fetch(CFG.GOC_DL + 'data/lop.json', { cache: 'no-cache' }).then(function (r) { return r.json(); });
+        DS_LOP = (dl.lop || []).concat(dl.khoa || []);
+      } catch (e) { console.warn('[tn] chưa nạp được danh sách lớp', e); return; }
+      var can = toi.laThay ? DS_LOP.map(function (l) { return l.maLop; }) : (toi.cacLop || [toi.lop]).filter(Boolean);
+      PHONG_LOP = can.map(function (ma, i) {
+        var l = DS_LOP.filter(function (x) { return x.maLop === ma; })[0]; if (!l) return null;
+        var tv = {}, tvIds = [];
+        (l.hocSinh || []).forEach(function (h) { var k = 'm:' + h.ma; if (h.ma === MA_TOI) return; tv[k] = { ten: h.ten, anh: avUrl(l.tenGoc, h.ten), lop: tenLopHien(l) }; tvIds.push(k); });
+        tv['m:GV'] = { ten: 'Thầy Andrew', anh: 'assets/avatar-tron.jpg', vaiTro: 'gv', lop: 'Thầy' };
+        var dc = {}; dc[toi.uid] = docXem(ma);
+        return { id: 'lop:' + ma, _lop: true, loai: 'nhom', lop: ma, ten: tenLopHien(l), tenGoc: l.tenGoc, _thuTu: i,
+                 thanhVien: tvIds.concat(['m:GV']), tv: tv, soThanhVien: (l.hocSinh || []).length,
+                 dsTen: (l.hocSinh || []).map(function (h) { return h.ten; }), tinCuoi: null, capNhat: 0, docLuc: dc };
+      }).filter(Boolean);
+      veDs();
+      // tin cuối từng lớp — MỘT lượt đọc/lớp (getDocs limit 1, không mở kênh sống)
+      var f = await AWChat.kho();
+      PHONG_LOP.forEach(function (p) {
+        f.fs.getDocs(f.fs.query(f.fs.collection(f.db, 'classChat', p.lop, 'messages'), f.fs.orderBy('createdAt', 'desc'), f.fs.limit(1))).then(function (s) {
+          s.forEach(function (d) { var x = d.data() || {}; datTinCuoiLop(p, { ma: x.code, vaiTro: x.role, ten: x.name, chu: x.thuHoi ? 'Tin nhắn đã bị thu hồi' : (x.hinh && x.text === '[Hình ảnh]' ? '' : x.text), hinh: x.hinh, sticker: x.sticker, luc: Number(x.createdAt) || 0 }); });
+          veDs();
+        }).catch(function (e) { console.warn('[tn] tin cuối lớp ' + p.lop, e); });
+      });
+    }
+    function datTinCuoiLop(p, t) {
+      if (!t || !(t.luc > 0)) return;
+      var chu = window.ChatUI && ChatUI.chuThuong ? ChatUI.chuThuong(ChatUI.tomTat({ chu: t.chu || '', hinh: t.hinh || '', sticker: t.sticker || '' })) : (t.chu || '');
+      p.tinCuoi = { chu: String(chu || (t.sticker ? 'Nhãn dán' : '')).slice(0, 80), hinh: !!t.hinh, uid: uidTin(t), ten: t.vaiTro === 'gv' ? 'Thầy Andrew' : t.ten, luc: t.luc };
+      p.capNhat = t.luc;
+    }
+    // khuôn chat của phòng lớp — y khuôn trang lớp (lop.html UI_CHAT), gửi/đọc qua AWChat
+    function taoKhuonLop(p, khung, chan) {
+      var tenToi = toi.laThay ? 'Thầy Andrew' : toi.ten;
+      var u = ChatUI.tao({
+        khung: khung, chan: chan, idNhap: 'tnO',
+        toi: { get khoa() { return MA_TOI; }, get ten() { return tenToi; } },
+        laThay: !!toi.laThay, hienTen: true,
+        laCuaToi: function (t) { return !!(t.ma && MA_TOI && t.ma === MA_TOI); },
+        av: function (t) { return t.vaiTro === 'gv' ? NW.avHtml({ ten: 'Thầy Andrew', anh: 'assets/avatar-tron.jpg', vaiTro: 'gv' }, 'nho') : NW.avHtml({ ten: t.ten, anh: avUrl(p.tenGoc, t.ten) }, 'nho'); },
+        nhan: function (t) { return t.vaiTro === 'gv' ? NW.tichHtml('nho') : ''; },
+        dsNhac: function () { return (p.dsTen || []).concat(['Thầy Andrew']); },
+        gui: function (g) {
+          if (!MA_TOI) return Promise.reject('Chưa nhận ra tài khoản của em — em tải lại trang nhé.');
+          if (!toi.laThay && u._kc) return Promise.reject(Object.assign(new Error('khoa'), { code: 'awc/chat-khoa' }));
+          if (!toi.laThay && u._cam) return Promise.reject(Object.assign(new Error('cam'), { code: 'awc/bi-cam' }));
+          return AWChat.gui(p.lop, Object.assign({ ten: tenToi, ma: MA_TOI, vaiTro: toi.laThay ? 'gv' : 'hs' }, g));
+        },
+        guiAnh: toi.laThay ? function (file) { return AWChat.guiAnh(p.lop, file); } : null,   // chỉ thầy gửi ảnh
+        datCx: function (t, v) { return AWChat.datCx(p.lop, t.id, MA_TOI, v); },
+        ghiXem: function (luc) { return AWChat.ghiXem(p.lop, MA_TOI, tenToi, luc); },
+        thuHoi: function (t) { return AWChat.thuHoi(p.lop, t.id, !!toi.laThay); },
+        xoa: toi.laThay ? function (t) { return AWChat.xoa(p.lop, t.id); } : null,
+        xemAnh: function (url) { NW.xemAnh(url, TIN.filter(function (x) { return x.hinh && !x.thuHoi; }).map(function (x) { return x.hinh; })); },
+        loi: function (e) { if (e === '__im') return; NW.toast(typeof e === 'string' ? e : AWChat.chuLoi(e), true); },
+        trong: 'Lớp mình chưa ai nhắn gì. Em mở lời trước nhé!'
+      });
+      u.laLop = true;
+      if (window.__thayVao) u.datChiXem(true, 'Đang mở thay em — chat lớp chỉ để đọc.');
+      return u;
+    }
+    function moPhongLop(p) {
+      var u = UI, TIN_CU = [], TIN_SONG = [], goKc = null, goCam = null, henCam = null;
+      function gop() { var co = {}; TIN = TIN_CU.concat(TIN_SONG).filter(function (t) { if (co[t.id]) return false; co[t.id] = 1; return true; }); }
+      function veKhoa() {
+        clearTimeout(henCam);
+        var cam = u._camGoc && AWChat.camChuan ? AWChat.camChuan(u._camGoc) : null; u._cam = !!cam;
+        if (toi.laThay) return;
+        if (u._kc) u.khoa(true, 'Chat đang tạm khoá, em quay lại sau nhé.');
+        else if (cam) u.khoa(true, 'Em đang bị cấm chat.');
+        else u.khoa(false);
+        if (cam) henCam = setTimeout(veKhoa, Math.max(1000, Math.min(cam.den - (window.gioChuan ? window.gioChuan() : Date.now()) + 1500, 2000000000)));
+      }
+      $('#tnCuon', khuPhong).innerHTML = '<div class="tn-trong">Đang mở phòng trò chuyện…</div>';
+      AWChat.nghe(p.lop, function (ds) {
+        if (chon !== p.id) return;
+        TIN_SONG = ds; gop(); veTin();
+        var cuoi = ds[ds.length - 1];
+        if (cuoi) { datTinCuoiLop(p, cuoi); if (!document.hidden) ghiXemMay(p, cuoi.luc); else veDs(); }
+      }, function (e) { var c = $('#tnCuon', khuPhong); if (c) c.innerHTML = '<div class="tn-trong">' + an(AWChat.chuLoi(e)) + '</div>'; u.khoa(true, 'Chưa mở được phòng chat.'); });
+      u.datXem({});
+      if (AWChat.ngheXem) AWChat.ngheXem(p.lop, function (m) { if (chon === p.id) u.datXem(m); });
+      if (!toi.laThay && AWChat.ngheKhanCap) goKc = AWChat.ngheKhanCap(function (k) { u._kc = !!k.khoaChat; veKhoa(); });
+      if (!toi.laThay && AWChat.ngheCam && MA_TOI) goCam = AWChat.ngheCam(p.lop, MA_TOI, function (x) { u._camGoc = x; veKhoa(); });
+      taiCuLop = function () {
+        if (u._dangTai || hetCu || !TIN.length) return;
+        u._dangTai = true;
+        var cuon = $('#tnCuon', khuPhong), h = cuon ? cuon.scrollHeight : 0;
+        AWChat.taiThem(p.lop, TIN[0].luc).then(function (ds) {
+          u._dangTai = false;
+          if (ds.length < AWChat.TOI_DA_TIN_THEM) hetCu = true;
+          TIN_CU = ds.concat(TIN_CU); gop(); veTin();
+          if (cuon) cuon.scrollTop = cuon.scrollHeight - h;
+        }, function (e) { u._dangTai = false; NW.toast(AWChat.chuLoi(e), true); });
+      };
+      dungNghe = function () { AWChat.thoi(); if (goKc) goKc(); if (goCam) goCam(); clearTimeout(henCam); };
+    }
+    var taiCuLop = function () { };
+    document.addEventListener('visibilitychange', function () {
+      var p = chon && timPhong(chon);
+      if (!document.hidden && p && p._lop && TIN.length) ghiXemMay(p, TIN[TIN.length - 1].luc);
+    });
+    napPhongLop();
+
     // ---------- nhận danh sách phòng từ kênh chung ----------
     var lanDau = true;
     NW.nghePhong(function (ds) {
       PHONG = ds;
-      if (chon) { var p = ds.filter(function (x) { return x.id === chon; })[0]; if (p) { nguoiHienTai = p; var ten = $('.tn-phong-dau .ten', khuPhong); if (ten) ten.textContent = tenPhong(p); veTin(); } }
+      if (chon && !/^lop:/.test(chon)) { var p = ds.filter(function (x) { return x.id === chon; })[0]; if (p) { nguoiHienTai = p; var ten = $('.tn-phong-dau .ten', khuPhong); if (ten) ten.textContent = tenPhong(p); veTin(); } }
       veDs();
       if (lanDau) {
         lanDau = false;
@@ -554,6 +735,11 @@
         { id: 'e2', uid: 'hs_1', ten: 'MINH ANH', chu: 'Dạ vâng ạ 🙌', luc: t - 49 * H, cx: cxMau({ gv: 'like' }) },
         { id: 'e3', uid: 'gv', ten: 'Thầy Andrew', anh: 'assets/avatar-tron.jpg', chu: 'Tuần sau kiểm tra WORDS 3 nhé cả lớp', luc: t - 30 * H, cx: cxMau({ hs_1: 'tim', hs_2: 'khoc', hs_5: 'ngac' }) }
       ];
+      if (p.id === 'n2') return [
+        { id: 'f1', uid: 'gv', ten: 'Thầy Andrew', anh: 'assets/avatar-tron.jpg', chu: 'Chào cả nhà K9! Đây là nhóm chính thức của khoá, thầy báo bài và lịch ở đây.', luc: t - 30 * H },
+        { id: 'f2', uid: 'hs_8', ten: 'DIỆU CHI', chu: 'Dạ thầy 🥰', luc: t - 29 * H },
+        { id: 'f3', uid: 'gv', ten: 'Thầy Andrew', anh: 'assets/avatar-tron.jpg', chu: 'Lesson 22 mở rồi nha cả nhà', luc: t - 5 * H }
+      ];
       if (p.id === 'n1') return [
         { id: 'b1', uid: 'hs_2', ten: 'BẢO NAM', chu: 'Mai thi nha mọi người', luc: t - 5000e3 },
         { id: 'b2', uid: 'hs_1', ten: 'MINH ANH', chu: 'Ai có đề cũ không?', luc: t - 4900e3 },
@@ -572,13 +758,14 @@
       var t0 = Date.now();
       PHONG = [
         { id: 'hs_0__hs_1', loai: 'rieng', thanhVien: ['hs_0', 'hs_1'], tv: { hs_1: { uid: 'hs_1', ten: 'MINH ANH', lop: 'A1C', vaiTro: 'hs', online: true } }, capNhat: t0 - 200e3, tinCuoi: { chu: '❤️', uid: 'hs_0', luc: t0 - 200e3 }, docLuc: { hs_1: t0 - 100e3, hs_0: t0 } },
-        { id: 'n0', loai: 'nhom', ten: 'LỚP A1C', thanhVien: ['gv', 'hs_0', 'hs_1', 'hs_2', 'hs_5', 'hs_6', 'hs_7'], tv: { gv: { uid: 'gv', ten: 'Thầy Andrew', vaiTro: 'gv', anh: 'assets/avatar-tron.jpg' }, hs_1: { uid: 'hs_1', ten: 'MINH ANH' }, hs_2: { uid: 'hs_2', ten: 'BẢO NAM' }, hs_5: { uid: 'hs_5', ten: 'THẢO VY' }, hs_6: { uid: 'hs_6', ten: 'GIA HUY' }, hs_7: { uid: 'hs_7', ten: 'KHÁNH LINH' } }, taoBoi: 'gv', capNhat: t0 - 30 * 3600e3, tinCuoi: { chu: 'Tuần sau kiểm tra WORDS 3 nhé cả lớp', uid: 'gv', ten: 'Thầy Andrew', luc: t0 - 30 * 3600e3 }, docLuc: { hs_0: t0 } },
+        { id: 'n2', loai: 'nhom', lop: 'NTK9', ten: 'Nền Tảng K9', thanhVien: ['gv', 'hs_0', 'hs_8', 'hs_9'], tv: { gv: { uid: 'gv', ten: 'Thầy Andrew', vaiTro: 'gv', anh: 'assets/avatar-tron.jpg' }, hs_8: { uid: 'hs_8', ten: 'DIỆU CHI' }, hs_9: { uid: 'hs_9', ten: 'QUANG MINH' } }, taoBoi: 'gv', capNhat: t0 - 5 * 3600e3, tinCuoi: { chu: 'Lesson 22 mở rồi nha cả nhà', uid: 'gv', ten: 'Thầy Andrew', luc: t0 - 5 * 3600e3 }, docLuc: { hs_0: t0 - 9 * 3600e3 } },
+        { id: 'n0', loai: 'nhom', lop: 'A1C', ten: 'Lớp A1-C', thanhVien: ['gv', 'hs_0', 'hs_1', 'hs_2', 'hs_5', 'hs_6', 'hs_7'], tv: { gv: { uid: 'gv', ten: 'Thầy Andrew', vaiTro: 'gv', anh: 'assets/avatar-tron.jpg' }, hs_1: { uid: 'hs_1', ten: 'MINH ANH' }, hs_2: { uid: 'hs_2', ten: 'BẢO NAM' }, hs_5: { uid: 'hs_5', ten: 'THẢO VY' }, hs_6: { uid: 'hs_6', ten: 'GIA HUY' }, hs_7: { uid: 'hs_7', ten: 'KHÁNH LINH' } }, taoBoi: 'gv', capNhat: t0 - 30 * 3600e3, tinCuoi: { chu: 'Tuần sau kiểm tra WORDS 3 nhé cả lớp', uid: 'gv', ten: 'Thầy Andrew', luc: t0 - 30 * 3600e3 }, docLuc: { hs_0: t0 } },
         { id: 'n1', loai: 'nhom', ten: 'Nhóm ôn WORDS A1C', thanhVien: ['gv', 'hs_0', 'hs_1', 'hs_2', 'hs_5'], tv: { gv: { uid: 'gv', ten: 'Thầy Andrew', vaiTro: 'gv', anh: 'assets/avatar-tron.jpg' }, hs_1: { uid: 'hs_1', ten: 'MINH ANH', online: true }, hs_2: { uid: 'hs_2', ten: 'BẢO NAM' }, hs_5: { uid: 'hs_5', ten: 'THẢO VY' } }, taoBoi: 'gv', capNhat: t0 - 4700e3, tinCuoi: { chu: 'Cảm ơn nha 🙏', uid: 'hs_5', ten: 'THẢO VY', luc: t0 - 4700e3 }, docLuc: { hs_0: t0 - 4000e3, hs_1: t0 - 4600e3, hs_2: t0 - 4750e3 }, tat: { hs_0: true } },
         { id: 'hs_0__gv', loai: 'rieng', thanhVien: ['hs_0', 'gv'], tv: { gv: { uid: 'gv', ten: 'Thầy Andrew', vaiTro: 'gv', anh: 'assets/avatar-tron.jpg' } }, capNhat: t0 - 6.8 * 3600e3, tinCuoi: { chu: 'Thầy thấy rồi, tốt lắm 👍', uid: 'gv', luc: t0 - 6.8 * 3600e3 }, docLuc: { hs_0: t0, gv: t0 } },
         { id: 'hs_0__hs_5', loai: 'rieng', thanhVien: ['hs_0', 'hs_5'], tv: { hs_5: { uid: 'hs_5', ten: 'THẢO VY', lop: 'A1C', vaiTro: 'hs' } }, capNhat: t0 - 30 * 3600e3, tinCuoi: { chu: 'Bạn ơi cho mình mượn vở nha', uid: 'hs_5', luc: t0 - 30 * 3600e3 }, docLuc: {} }
       ];
       veDs();
-      if (window.innerWidth > 640) moPhong('hs_0__hs_1');
+      if (window.innerWidth > 640 && /[?&]mo=1/.test(location.search)) moPhong(CHO_RIENG ? 'hs_0__hs_1' : 'n0');
     }
   };
 })();

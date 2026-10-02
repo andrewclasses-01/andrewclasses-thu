@@ -5,6 +5,11 @@
 window.NW_CONFIG = {
   TEN_SITE: 'Andrew Classes Network',
 
+  // ⭐ 02/10/2026 — trang THỬ (andrewclasses-01.github.io / máy cổng 8825) mở hết myNetwork; trang THẬT chỉ mở Tin nhắn
+  // (các tab/trang khác = hộp "sắp ra mắt", NW.moDuoc). Trang thử không chứa data/ ⇒ đọc lop.json + ảnh từ andrewclasses.com.
+  LA_THU: /^andrewclasses-01\.github\.io$/.test(location.hostname) || location.port === '8825',
+  GOC_DL: (/^andrewclasses-01\.github\.io$/.test(location.hostname) || location.port === '8825') ? 'https://andrewclasses.com/' : '../',
+
   // Phiên bản — hiện nhỏ ở chân trang / menu. GitHub Pages giữ cache ~10 phút,
   // nhìn số này là biết máy đang chạy bản nào.
   PHIEN_BAN: '0.9.2',
@@ -48,6 +53,9 @@ window.NW_CONFIG = {
   // ---- Nhắn tin riêng ----
   // Thầy chốt 20/09/2026: giai đoạn đầu chỉ nhắn được với bạn CÙNG LỚP + thầy.
   // Bật cờ này (và luật Firestore đã có nhánh nwBanBe) là mở nhắn toàn mạng qua KẾT BẠN.
+  // ⭐ 02/10/2026 thầy chốt: TRANG TIN NHẮN của HỌC SINH tạm chỉ có NHÓM LỚP + Thầy Andrew (không nhắn riêng bạn, không tạo cuộc mới).
+  // Bật cờ này là mở lại nhắn riêng (nút ✎ + mọi cuộc riêng). Thầy luôn thấy đủ.
+  BAT_CHAT_RIENG: false,
   BAT_KET_BAN: true,   // v0.4.0 thầy chốt 22/09: cùng lớp = bạn sẵn, KHÁC LỚP phải kết bạn mới xem trang / nhắn tin
 
   // ---- Từ cấm: ô soạn tự chặn khi gõ (chặn ở giao diện; thầy còn kho
