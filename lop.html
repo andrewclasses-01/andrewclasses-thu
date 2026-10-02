@@ -1523,7 +1523,7 @@ body.mo-menu .side.trai{transform:none}
 </style>
 <link rel="stylesheet" href="css/nw-thanh.css?v=9">
 <!-- ⭐ v1.186.0 — khuôn chat kiểu Zalo dùng chung -->
-<link rel="stylesheet" href="css/chat-ui.css?v=17">
+<link rel="stylesheet" href="css/chat-ui.css?v=18">
 </head>
 <body>
 
@@ -1648,7 +1648,7 @@ body.mo-menu .side.trai{transform:none}
 <script src="js/nw-phien.js?v=6"></script>
 <script src="js/chat.js?v=32"></script>
 <script src="js/online.js?v=2"></script>   <!-- v1.211.0 — báo "em đang online" cho dashboard -->
-<script src="js/chat-ui.js?v=18"></script>
+<script src="js/chat-ui.js?v=19"></script>
 <!-- ⭐ v1.52.0 — phiên thầy (Firebase Auth) cho đường `?gv=1` từ dashboard; nạp SAU chat.js -->
 <script src="js/thay.js?v=4"></script>
 <!-- ⭐ v1.38.0 — VÍ SAO + ĐỔI QUÀ dùng chung cho cả ba trang học sinh.
@@ -3123,7 +3123,8 @@ function dungCot(){
     var b = dsThe[i] || {};
     t.onclick = function(){
       /* ⭐ v1.35.0 — thẻ TẠM KHOÁ: không mở gì cả (kể cả SP CHECK), chỉ báo một câu. */
-      if (b.khoa) { baoToast('Bài này thầy đang tạm khoá, chờ thầy mở lại nhé.'); return; }
+      /* thiết kế KNT 12 — THẦY (mở từ dashboard, `?gv=1`) vào được cả bài tạm khoá */
+      if (b.khoa && !(EM && EM.vaiTro === 'gv')) { baoToast('Bài này thầy đang tạm khoá, chờ thầy mở lại nhé.'); return; }
       /* ⭐ SP CHECK — thẻ speaking đi đường riêng: pop-up rồi sang mySpeaking. */
       if (b.loai === 'spcheck') { moPhongCham(b); return; }
       /* ⭐ v1.9.0 — mở đúng TRANG BÀI TẬP của thẻ này.
