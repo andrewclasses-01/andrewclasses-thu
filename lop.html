@@ -1373,10 +1373,12 @@ body.mo-menu .side.trai{transform:none}
      sổ lùn dần thì hàng chat cứ co lại (tin nhắn chuyển thành cuộn) để ô nhập
      luôn hiện ĐỦ. Chỉ khi cửa sổ ngắn hơn [2 thẻ + tiêu đề + ô nhập] thì lưới
      mới tràn và ô nhập trồi xuống dưới mép màn — thầy chấp nhận ca này. */
-  .main{grid-template-columns:1fr; grid-template-rows:auto minmax(var(--san-chat),1fr);
+  /* thiết kế ĐT 1 (02/10) — minmax(0,1fr) chứ không phải 1fr: 1fr = minmax(auto,1fr) ⇒ cột bị thanh STAGE
+     (khúc flex-shrink:0, tối thiểu ~618px) kéo giãn ⇒ trang 698px ở iPhone, lệch phải cả trang (như khoa.html). */
+  .main{grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(var(--san-chat),1fr);
     gap:14px; padding:14px 20px 16px;
-    height:calc(100vh - var(--cao-dau) - var(--banphim));
-    height:calc(100dvh - var(--cao-dau) - var(--banphim))}
+    height:calc(100vh - var(--cao-dau) - var(--banphim) - var(--cao-dai, 0px));
+    height:calc(100dvh - var(--cao-dau) - var(--banphim) - var(--cao-dai, 0px))}
   /* ⛔ Ô lưới bây giờ là .chat-cot chứ không phải .chat nữa, nên phải cho
      khung chat cao ĐÚNG BẰNG Ô (100%). Để height:auto là nó phình theo số
      tin nhắn rồi tràn ra ngoài ô, ô nhập tụt xuống tận đáy trang. */
@@ -1415,8 +1417,8 @@ body.mo-menu .side.trai{transform:none}
      khung vẫn tính là "auto" nên hàng 1fr không có gì để chia — nó co theo
      nội dung và khung chat lại dài ra như cũ. */
   .main{gap:12px; padding:12px 18px 14px; grid-template-rows:auto minmax(190px,1fr);
-    height:calc(100vh - var(--cao-dau) - var(--banphim));
-    height:calc(100dvh - var(--cao-dau) - var(--banphim))}
+    height:calc(100vh - var(--cao-dau) - var(--banphim) - var(--cao-dai, 0px));
+    height:calc(100dvh - var(--cao-dau) - var(--banphim) - var(--cao-dai, 0px))}
   .cot-bai{gap:12px}
   .vach{margin:0}
 
@@ -1438,6 +1440,14 @@ body.mo-menu .side.trai{transform:none}
   .t-ma{font-size:10.2px}
   .t-ten .ngay,.t-ten .khoang{margin-left:5px}
   .han-boc{width:106px; gap:5px}
+  /* thiết kế ĐT 1 — `.han-boc.rong` (236px, 2 class) thắng luật trên ⇒ ô hạn STAGE vẫn 236px trên điện thoại. */
+  .han-boc.rong{width:150px}
+  .han-boc.rong .t-han{width:144px}
+  .han-boc.rong .han-dong{font-size:9px}
+  /* Khúc chặng to (đang chạy / quá hạn / chờ) được co, chữ nhỏ lại — như bai.html. */
+  .st-khuc.cho,.st-khuc.dang,.st-khuc.ket{flex-shrink:1; min-width:0}
+  .st-khuc{font-size:9px; letter-spacing:.02em}
+  .st-khuc.dang,.st-khuc.ket{font-size:10px}
   .t-han{width:100px; min-width:0; padding:3px 6px 4px; border-radius:9px; gap:2px}
   .t-han .han-dong{font-size:8.5px; gap:3px}
   .t-han .han-dong svg{width:9px; height:9px}
@@ -1520,8 +1530,13 @@ body.mo-menu .side.trai{transform:none}
 .nhan-thay{display:inline-block; margin-left:5px; padding:1px 6px; border-radius:6px;
   background:#0E7C6E; color:#fff; font:800 9px/1.5 var(--sans, inherit);
   letter-spacing:.08em; vertical-align:1px}
+/* ⭐ thiết kế ĐT 8 (02/10, thầy chốt) — ĐIỆN THOẠI: chat lớp chuyển HẲN sang tab Tin nhắn (số tin mới trên icon) ⇒ trang chỉ còn thẻ bài. */
+@media (max-width:640px){
+  .chat-cot{display:none}
+  .main{grid-template-rows:auto; align-content:start}
+}
 </style>
-<link rel="stylesheet" href="css/nw-thanh.css?v=9">
+<link rel="stylesheet" href="css/nw-thanh.css?v=13">
 <!-- ⭐ v1.186.0 — khuôn chat kiểu Zalo dùng chung -->
 <link rel="stylesheet" href="css/chat-ui.css?v=18">
 </head>
@@ -1642,7 +1657,7 @@ body.mo-menu .side.trai{transform:none}
 <div class="toast" id="toast"></div>
 
 <script src="config.js?v=206"></script>
-<script src="js/thay-vao.js?v=2"></script>
+<script src="js/thay-vao.js?v=3"></script>
 <script src="js/app-check.js?v=3"></script>
 <script src="js/chung.js?v=80"></script>
 <script src="js/nw-phien.js?v=7"></script>
@@ -4490,6 +4505,13 @@ function capNhatChamTin(){
   var l = mocTinCuoi();
   A.datMocTinMoi(LOP_DL, l);
   A.veChamDo(!!l && l > A.mocDaXem(LOP_DL, MA_HS));
+  /* ⭐ thiết kế ĐT 8 (thầy chốt) — số trên icon Tin nhắn = số tin CHƯA XEM của lớp này (không tính tin của chính em). Đọc ở trang
+     Tin nhắn (cùng khoá "đã xem") là số tự hết. Không tốn thêm lượt đọc: đếm trên tin đang có sẵn. */
+  if (window.NWB) {
+    var xem = A.mocDaXem(LOP_DL, MA_HS), n = 0;
+    TIN_MAU.forEach(function(t){ if ((Number(t.luc) || 0) > xem && !(t.ma && t.ma === MA_HS)) n++; });
+    NWB.datSo('tinNhan', n);
+  }
 }
 function danhDauDocChat(){
   var l = mocTinCuoi();
@@ -4564,6 +4586,6 @@ function baoToast(chu){
   henToast = setTimeout(function(){ t.classList.remove('hien'); }, 2600);
 }
 </script>
-<script src="js/nw-thanh.js?v=24"></script>
+<script src="js/nw-thanh.js?v=25"></script>
 </body>
 </html>

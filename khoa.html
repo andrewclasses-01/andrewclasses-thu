@@ -594,8 +594,8 @@ body.mo-menu .side.trai{transform:none}
 @media (max-width:1040px){
   .main{grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(var(--san-chat),1fr);
     gap:14px; padding:14px 20px 16px;
-    height:calc(100vh - var(--cao-dau) - var(--banphim));
-    height:calc(100dvh - var(--cao-dau) - var(--banphim))}
+    height:calc(100vh - var(--cao-dau) - var(--banphim) - var(--cao-dai, 0px));
+    height:calc(100dvh - var(--cao-dau) - var(--banphim) - var(--cao-dai, 0px))}
   .chat{height:100%}
   .go-chat .cot-bai,.go-chat .vach{display:none}
   .go-chat .main{grid-template-rows:1fr}
@@ -603,11 +603,11 @@ body.mo-menu .side.trai{transform:none}
 
 /* ---------- DẠNG ĐIỆN THOẠI DỌC (y hệt lop.html) ---------- */
 @media (max-width:620px){
-  :root{--cao-the:226px}
+  :root{--cao-the:186px}   /* thiết kế ĐT 2 — 226 ⇒ 186: chat còn 104px thay 72px, ô gõ không chui dưới thanh tab */
   .wrap{padding:0 18px}
   .main{gap:12px; padding:12px 18px 14px; grid-template-rows:auto minmax(190px,1fr);
-    height:calc(100vh - var(--cao-dau) - var(--banphim));
-    height:calc(100dvh - var(--cao-dau) - var(--banphim))}
+    height:calc(100vh - var(--cao-dau) - var(--banphim) - var(--cao-dai, 0px));
+    height:calc(100dvh - var(--cao-dau) - var(--banphim) - var(--cao-dai, 0px))}
   .cot-bai{gap:12px}
   .vach{margin:0}
 
@@ -649,8 +649,13 @@ body.mo-menu .side.trai{transform:none}
   .msg.toi .av{margin-top:0}
   .chat-foot{padding:9px 10px}
 }
+/* ⭐ thiết kế ĐT 8 (02/10, thầy chốt) — ĐIỆN THOẠI: chat lớp chuyển HẲN sang tab Tin nhắn (số tin mới trên icon) ⇒ trang chỉ còn thẻ bài. */
+@media (max-width:640px){
+  .chat-cot{display:none}
+  .main{grid-template-rows:auto; align-content:start}
+}
 </style>
-<link rel="stylesheet" href="css/nw-thanh.css?v=9">
+<link rel="stylesheet" href="css/nw-thanh.css?v=13">
 <!-- ⭐ v1.186.0 — khuôn chat kiểu Zalo dùng chung -->
 <link rel="stylesheet" href="css/chat-ui.css?v=18">
 </head>
@@ -727,7 +732,7 @@ body.mo-menu .side.trai{transform:none}
 <div class="toast" id="toast"></div>
 
 <script src="config.js?v=206"></script>
-<script src="js/thay-vao.js?v=2"></script>
+<script src="js/thay-vao.js?v=3"></script>
 <script src="js/app-check.js?v=3"></script>
 <script src="js/chung.js?v=80"></script>
 <script src="js/nw-phien.js?v=7"></script>
@@ -1622,6 +1627,13 @@ function capNhatChamTin(){
   var l = mocTinCuoi();
   A.datMocTinMoi(LOP_DL, l);
   A.veChamDo(!!l && l > A.mocDaXem(LOP_DL, MA_HS));
+  /* ⭐ thiết kế ĐT 8 (thầy chốt) — số trên icon Tin nhắn = số tin CHƯA XEM của lớp này (không tính tin của chính em). Đọc ở trang
+     Tin nhắn (cùng khoá "đã xem") là số tự hết. Không tốn thêm lượt đọc: đếm trên tin đang có sẵn. */
+  if (window.NWB) {
+    var xem = A.mocDaXem(LOP_DL, MA_HS), n = 0;
+    TIN_MAU.forEach(function(t){ if ((Number(t.luc) || 0) > xem && !(t.ma && t.ma === MA_HS)) n++; });
+    NWB.datSo('tinNhan', n);
+  }
 }
 function danhDauDocChat(){
   var l = mocTinCuoi();
@@ -1697,6 +1709,6 @@ function baoToast(chu){
 
 setInterval(nhipDongHo, 1000);
 </script>
-<script src="js/nw-thanh.js?v=24"></script>
+<script src="js/nw-thanh.js?v=25"></script>
 </body>
 </html>

@@ -1632,9 +1632,34 @@ i.m-vang{background:var(--m-vang)} i.m-duong{background:var(--m-duong)} i.m-la{b
   stroke-linecap:round; stroke-linejoin:round}
 
 @media (max-width:620px){
-  :root{--cao-the:166px}
+  /* thiết kế ĐT 3 (02/10) — 166 ⇒ 200 (= máy tính): thẻ STAGE "Bài còn hạn" cần ~200px, 166 làm thanh chặng đè ô đếm ngược. */
+  :root{--cao-the:200px}
   .the-in{--mui:42px}
   .play svg{width:17px; height:17px; margin-right:17px}
+  /* `.han-boc.rong` 236px (2 class) bóp tên bài còn "S.." ⇒ thu ô hạn STAGE; khúc chặng to được co như bai.html/lop.html. */
+  .han-boc.rong{width:150px}
+  .han-boc.rong .t-han{width:144px}
+  .han-boc.rong .han-dong{font-size:9px}
+  /* thiết kế ĐT 7 — thẻ bài THƯỜNG: ô hạn 176px bóp tên còn "VOCAB…" ⇒ ô hạn 134px, tên 13px được xuống dòng, ngày/khoảng ngày xuống dòng riêng. */
+  .han-boc{width:134px}
+  .t-han{width:128px}
+  .t-han .han-dong{font-size:10.5px}
+  .dhho{font-size:19px}
+  #theListDs .t-ten{font-size:13px; white-space:normal}
+  #theListDs .t-ten .ngay, #theListDs .t-ten .khoang{display:block; margin:2px 0 0; font-size:11.5px}
+  #theListDs .t-ma{font-size:11px}
+  .st-khuc.cho,.st-khuc.dang,.st-khuc.ket{flex-shrink:1; min-width:0}
+  .st-khuc{font-size:9px; letter-spacing:.02em}
+  .st-khuc.dang,.st-khuc.ket{font-size:10px}
+  /* ĐANG HOẠT ĐỘNG / BÀI TẬP GẦN ĐÂY: hết "khung bé cuộn trong trang cuộn" — dài theo nội dung, bài gần đây trần 420px. */
+  .cot-the{min-height:0}
+  .hd-zone{flex:none}
+  .hd-than{flex:none; max-height:none}
+  .hd-nua + .hd-nua .hd-than{max-height:420px}
+  /* ⭐ thiết kế ĐT 7 (02/10, thầy chốt) — điện thoại: chat lớp chuyển HẲN sang tab Tin nhắn (số tin mới hiện trên icon),
+     ĐANG HOẠT ĐỘNG + BÀI TẬP GẦN ĐÂY xem ở mục "Hoạt động" trong ☰. Máy tính giữ nguyên trên trang quản lý. */
+  .cot-chat{display:none}
+  .hd-zone{display:none}
 }
 
 /* ================================================================
@@ -2531,6 +2556,63 @@ table.hq-tl.deu td, table.hq-tl.deu th{overflow:hidden}
 .mn .sb-item .ten{font:700 13.5px/1.3 var(--font)}
 .mn .sb-item.sb-out:hover{background:var(--do-nhat)}
 @media (prefers-reduced-motion:reduce){.mn{transition:none}}
+/* ⭐ thiết kế ĐT 8 — pop-up HOẠT ĐỘNG (mục "Hoạt động" cột trái / ☰) */
+.hdt-nen{position:fixed; inset:0; z-index:8700; background:rgba(10,20,22,.45); display:grid; place-items:center; padding:24px}
+.hdt-nen[hidden]{display:none!important}
+.hdt-hop{width:min(1400px,100%); height:min(860px,100%); background:#F1F5F4; border-radius:20px; box-shadow:0 30px 80px rgba(0,0,0,.35);
+  display:flex; flex-direction:column; overflow:hidden; font-family:var(--font); color:var(--chu)}
+.hdt-dau{flex:none; display:flex; align-items:center; gap:12px; padding:12px 16px; background:#fff; border-bottom:1px solid var(--vien)}
+.hdt-dau h2{margin:0; font:800 16px var(--font); letter-spacing:.02em; white-space:nowrap}
+.hdt-tabs{display:none; gap:3px; background:#F1F5F4; padding:3px; border-radius:11px}
+.hdt-tabs button{border:0; background:none; font:700 12.5px var(--font); color:var(--mo); padding:8px 12px; border-radius:8px; cursor:pointer; white-space:nowrap}
+.hdt-tabs button.chon{background:#fff; color:var(--xanh); box-shadow:0 1px 3px rgba(22,35,42,.12)}
+.hdt-x{margin-left:auto; flex:none; width:40px; height:40px; border:0; border-radius:12px; background:#F1F5F4; color:var(--chu); display:grid; place-items:center; cursor:pointer}
+.hdt-x svg{width:20px; height:20px; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round}
+.hdt-than{flex:1 1 0; min-height:0; padding:14px}
+.hdt-hop .hdt-than .hd-zone{display:grid; grid-template-columns:1fr 1fr; gap:14px; height:100%; min-height:0; flex:none}
+.hdt-hop .hdt-than .hd-nua{min-height:0; height:100%}
+.hdt-hop .hdt-than .hd-nua .hd-than{flex:1 1 0; max-height:none; min-height:0; overflow-y:auto}
+@media (max-width:640px){
+  .hdt-nen{padding:0}
+  .hdt-hop{width:100%; height:100%; border-radius:0}
+  .hdt-dau{padding:8px 10px 8px 14px; gap:8px; flex-wrap:wrap}
+  .hdt-tabs{display:flex; order:3; flex:1 1 100%}
+  .hdt-tabs button{flex:1}
+  .hdt-than{padding:10px}
+  .hdt-hop .hdt-than .hd-zone{grid-template-columns:1fr}
+  .hdt-hop[data-tab="0"] .hdt-than .hd-nua:nth-child(2), .hdt-hop[data-tab="1"] .hdt-than .hd-nua:nth-child(1){display:none}
+}
+.lb3 .lb-ten .tn-ngan{display:none}   /* máy tính: tên đầy đủ (điện thoại đổi ở @media 640 ngay dưới) */
+/* ⭐ thiết kế ĐT 4 (02/10/2026, thầy chốt) — ĐIỆN THOẠI (≤640): thanh tab lên ĐẦU, dải menu quản lý cuộn ngang (#nwbQlCot)
+   BỎ khỏi đầu trang ⇒ JS (`datMenuDt`) dời nó VÀO pop-up ☰, pop-up thành SIDEBAR PHẢI cao hết màn: menu quản lý ở trên
+   (ưu tiên), "Thầy đã đăng nhập" + "Đăng xuất" (#mnDs) xuống ĐÁY. Máy tính giữ nguyên pop-up nhỏ + cột trái. */
+@media (max-width:640px){
+  .mn{top:0!important; right:0!important; bottom:0; width:min(330px,88vw); border-radius:18px 0 0 18px; border-right:0;
+    padding:8px 8px calc(10px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; overflow-y:auto;
+    opacity:1; transform:translateX(105%); transition:transform .26s cubic-bezier(.22,.9,.3,1), box-shadow .26s;
+    box-shadow:none}   /* thiết kế ĐT 6 — đóng thì KHÔNG bóng: bóng -12px 40px của hộp nấp ngoài mép phải lộ thành dải tối ở cạnh phải màn */
+  .mn.mo{transform:none; box-shadow:-12px 0 40px rgba(16,40,36,.22), 0 0 0 100vmax rgba(16,35,42,.38)}
+  .mn::before,.mn .mn-dau{display:none}
+  .mn .nwb-ql-cot{position:static; display:block; max-height:none; height:auto; overflow:visible; padding:4px 0 8px}
+  .mn .nwb-ql-nhom{display:none}
+  .mn .nwb-ql-vach{display:block; margin:6px 10px}
+  .mn .nwb-ql-muc{width:100%; white-space:normal; font-size:14.5px; padding:9px 10px; gap:12px}
+  .mn .nwb-ql-muc .nwb-ql-ic, .mn .nwb-ql-muc .nwb-ql-ic svg{width:28px; height:28px}
+  .mn .nwb-ql-av{width:32px; height:32px; margin:-2px 0 -2px -2px}
+  .mn #mnDs{margin-top:auto; border-top:1px solid var(--vien); padding-top:8px}
+  /* thẻ lớp (tiền tố .lop-hang để THẮNG luật .lb3/.lbB viết SAU trong file, cùng độ ưu tiên): tên viết tắt (NT4 / NTK9) + chữ dạng bài và mã bài nhỏ lại để thấy hết */
+  .lop-hang .lb3 .lb-ten .tn-du{display:none}
+  .lop-hang .lb3 .lb-ten .tn-ngan{display:inline}
+  .lop-hang{column-gap:8px}
+  .lop-hang .lop-btn.lbB{padding:10px 6px 10px 12px}
+  .lop-hang .lbB .lb-h1{gap:6px; padding-right:4px}
+  .lop-hang .lbB .lb-ten{font-size:15px}
+  .lop-hang .lbB .lb-luc{font-size:10.5px}
+  .lop-hang .lb3 .lb-h3{gap:4px}
+  .lop-hang .lb3 .lb-dang{font-size:9px; padding:3px 4px; letter-spacing:.03em}
+  .lop-hang .lb3 .lb-ma{font-size:clamp(10.4px, 2.9vw, 11.5px); letter-spacing:-.03em}   /* thiết kế ĐT 6 — thầy: 8.8px bé quá ⇒ to nhất mà không lẹm; đo cỡ tối đa vừa: 360→11 · 375→11.8 · ≥390→12px */
+  .lop-hang .lb3 .lb-khoa{font-size:8.5px; padding:3px 4px; letter-spacing:.05em}
+}
 .sb-note{margin:10px 0 0; padding:9px 11px; border-radius:10px; background:var(--vang-nhat);
   color:#8a5b0e; font:600 11.5px/1.5 var(--font)}
 
@@ -3404,7 +3486,7 @@ tr.qm-hang-tam td{background:#fffbeb}
 .bc-nut .san{background:#dcfce7; color:#15803d}
 .bc-chua{flex:none; font:700 11.5px var(--font); color:var(--nhat)}
 </style>
-<link rel="stylesheet" href="css/nw-thanh.css?v=9">
+<link rel="stylesheet" href="css/nw-thanh.css?v=13">
 <!-- ⭐ v1.186.0 — khuôn chat kiểu Zalo dùng chung -->
 <link rel="stylesheet" href="css/chat-ui.css?v=18">
 </head>
@@ -3548,6 +3630,18 @@ tr.qm-hang-tam td{background:#fffbeb}
 <div class="mn" id="menuNho" role="menu" aria-label="Menu tài khoản">
   <div class="mn-dau"><img src="assets/avatar-tron.jpg" alt=""><div><div class="ten">Thầy Andrew</div><div class="phu" id="mnVer">Trang quản lý</div></div></div>
   <div class="sb-menu" id="mnDs"></div>
+</div>
+<!-- ⭐ thiết kế ĐT 8 (02/10, thầy chốt) — HOẠT ĐỘNG: pop-up toàn màn, 2 tab (điện thoại xem từng tab, máy tính 2 phần cạnh nhau).
+     Ruột = CHÍNH khối .hd-zone của trang (dời vào khi mở, trả về khi đóng) ⇒ số liệu sống, không tốn thêm lượt đọc. -->
+<div class="hdt-nen" id="hdtNen" hidden>
+  <div class="hdt-hop" id="hdtHop" role="dialog" aria-modal="true" aria-label="Hoạt động" data-tab="0">
+    <div class="hdt-dau">
+      <h2>Hoạt động</h2>
+      <div class="hdt-tabs" role="tablist"><button type="button" class="chon" data-hdt="0">Đang hoạt động</button><button type="button" data-hdt="1">Bài tập gần đây</button></div>
+      <button type="button" class="hdt-x" id="hdtDong" aria-label="Đóng"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>
+    <div class="hdt-than" id="hdtThan"></div>
+  </div>
 </div>
 <div class="sb-nen" id="sbNen"></div>
 <aside class="sb-panel" id="sbPanel" role="dialog" aria-label="Menu quản lý" aria-modal="true">
@@ -3810,7 +3904,7 @@ tr.qm-hang-tam td{background:#fffbeb}
 
 <script src="js/o-ngay.js?v=1"></script>
 <script src="config.js?v=206"></script>
-<script src="js/thay-vao.js?v=2"></script>
+<script src="js/thay-vao.js?v=3"></script>
 <script src="js/app-check.js?v=3"></script>
 <script src="js/chung.js?v=80"></script>
 <script src="js/chat.js?v=32"></script>
@@ -4128,6 +4222,14 @@ tr.qm-hang-tam td{background:#fffbeb}
     var k = String(d || '').trim().toUpperCase();
     return k === 'WORKSHEET' ? 'WS' : k;
   }
+  // thiết kế ĐT 4 (02/10, thầy chốt) — thẻ lớp trên ĐIỆN THOẠI viết tắt "NỀN TẢNG 4" ⇒ "NT4", "NỀN TẢNG K9" ⇒ "NTK9"
+  // (CSS ≤640 đổi giữa .tn-du / .tn-ngan; máy tính vẫn tên đầy đủ).
+  function tenTheLop(ten) {
+    var du = A.chuAnToan(ten), re = /^N[ỀÊE]N\s*T[ẢA]NG\s*/i;
+    if (!re.test(String(ten))) return du;
+    var ngan = String(ten).replace(re, 'NT').replace(/\s+/g, '');
+    return '<span class="tn-du">' + du + '</span><span class="tn-ngan">' + A.chuAnToan(ngan) + '</span>';
+  }
   function theLopBtnHtml(l) {
     var mL = A.chuAnToan(l.maLop);
     var tt = trangThaiBai(l);
@@ -4145,7 +4247,7 @@ tr.qm-hang-tam td{background:#fffbeb}
         ' title="' + A.chuAnToan(chu2 + (luc ? ' • ' + luc : '')) + ' — bấm đúp để mở kho bài">' +
       '<button class="lb-main" data-lop="' + mL + '" aria-label="Chọn ' + A.chuAnToan(l.tenGoc || l.maLop) + '"></button>' +
       (CHAM_DO[l.maLop] ? '<span class="lb-cham" title="Có tin nhắn mới"></span>' : '') +
-      '<div class="lb-h1"><span class="lb-ten">' + A.chuAnToan(l.tenGoc || l.maLop) + '</span>' +
+      '<div class="lb-h1"><span class="lb-ten">' + tenTheLop(l.tenGoc || l.maLop) + '</span>' +
         '<span class="lb-luc"' + (kieu ? ' data-kieu="' + kieu + '" data-moc="' + x.moc + '"' : '') + '>' +
           A.chuAnToan(chuLucB(tt, kieu, luc)) + '</span>' +
       '</div>' +
@@ -6938,6 +7040,33 @@ tr.qm-hang-tam td{background:#fffbeb}
     });
   }
   document.addEventListener('click', function (e) { var b = e.target.closest('[data-hd-phong]'); if (b) hdpMo(b.getAttribute('data-hd-phong')); });
+  // ⭐ thiết kế ĐT 8 (thầy chốt) — mục "Hoạt động" = pop-up toàn màn #hdtNen, 2 tab. Dời CHÍNH khối .hd-zone vào (số liệu sống,
+  // tay bắt nút phóng to giữ nguyên), đóng thì trả về đúng chỗ cũ (ngay sau #theListDs) rồi kéo lại khung giữa (hdKeoDai).
+  (function () {
+    var nen = $('#hdtNen'), hop = $('#hdtHop'), than = $('#hdtThan'), cho = null, sau = null;
+    function chonTab(i) {
+      hop.setAttribute('data-tab', String(i));
+      Array.prototype.forEach.call(hop.querySelectorAll('[data-hdt]'), function (b) { b.classList.toggle('chon', b.getAttribute('data-hdt') === String(i)); });
+    }
+    function dong() {
+      if (nen.hidden) return;
+      var z = than.querySelector('.hd-zone');
+      if (z && cho) cho.insertBefore(z, sau);
+      nen.hidden = true; document.body.classList.remove('hdp-dang-mo');
+      try { hdKeoDai(); } catch (e) {}
+    }
+    window.qlMoHoatDong = function (tab) {
+      var z = document.querySelector('.hd-zone');
+      if (!z) return;
+      if (z.parentNode !== than) { cho = z.parentNode; sau = z.nextSibling; than.appendChild(z); }
+      chonTab(tab || 0);
+      nen.hidden = false; document.body.classList.add('hdp-dang-mo');
+    };
+    hop.addEventListener('click', function (e) { var b = e.target.closest('[data-hdt]'); if (b) chonTab(b.getAttribute('data-hdt')); });
+    $('#hdtDong').addEventListener('click', dong);
+    nen.addEventListener('click', function (e) { if (e.target === nen) dong(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !nen.hidden && !document.querySelector('.hdp-nen:not([hidden])')) dong(); });
+  })();
 
   // font web / ảnh tải xong làm cột trái + thẻ lớp đổi cao ⇒ đo lại (bẫy đo layout quá sớm)
   window.addEventListener('load', hdKeoDai);
@@ -10274,17 +10403,25 @@ tr.qm-hang-tam td{background:#fffbeb}
   // lớp khác rồi quay lại mới thấy chấm mới.
   var CHAM_DO = {};
   function xemTinKey(maLop) { return 'mylesson_xemtin_' + maLop; }
+  // thiết kế ĐT 7 — trang Tin nhắn (nw/js/chat.js) nhớ "đã xem" ở khoá `mylesson_xemtin_<lớp>_GV` ⇒ đọc cả hai, ghi cả hai.
+  function mocXemTin(maLop) {
+    var a = 0, b = 0;
+    try { a = Number(localStorage.getItem(xemTinKey(maLop))) || 0; b = Number(localStorage.getItem(xemTinKey(maLop) + '_GV')) || 0; } catch (e) {}
+    return Math.max(a, b);
+  }
+  // Số trên icon Tin nhắn = số LỚP có tin chưa xem (như Messenger/Zalo đếm cuộc trò chuyện) — không tốn thêm lượt đọc.
+  function veSoTin() { if (window.NWB && !/[?&]somau=1/.test(location.search)) NWB.datSo('tinNhan', Object.keys(CHAM_DO).length); }
   function danhDauDaXemTin(maLop) {
-    try { localStorage.setItem(xemTinKey(maLop), String(Date.now())); } catch (e) {}
+    var bay = String(Date.now());
+    try { localStorage.setItem(xemTinKey(maLop), bay); localStorage.setItem(xemTinKey(maLop) + '_GV', bay); } catch (e) {}
     delete CHAM_DO[maLop];
+    veSoTin();
   }
   function capNhatChamDoLop() {
     (DL.lop || []).forEach(function (l) {
       AWChat.tinMoiNhat(l.maLop).then(function (luc) {
         if (!luc) return;
-        var xem = 0;
-        try { xem = Number(localStorage.getItem(xemTinKey(l.maLop))) || 0; } catch (e) {}
-        if (luc > xem) { CHAM_DO[l.maLop] = true; veLopGrid(); }
+        if (luc > mocXemTin(l.maLop)) { CHAM_DO[l.maLop] = true; veLopGrid(); veSoTin(); }
       })['catch'](function () {});
     });
   }
@@ -11751,6 +11888,21 @@ tr.qm-hang-tam td{background:#fffbeb}
     // ---------- SIDEBAR ----------
     // ⭐ v1.218.0 — ☰ = pop-up nhỏ cạnh nút (thầy chốt), không mở cả sidebar nữa.
     $('#mnDs').appendChild($('#thayDn')); $('#mnDs').appendChild($('#dangXuat'));
+    // ⭐ thiết kế ĐT 4 (02/10, thầy chốt) — điện thoại (≤640): dải menu quản lý #nwbQlCot dời VÀO pop-up ☰ (CSS biến pop-up
+    // thành sidebar phải), máy tính trả về chỗ cũ trong lưới .nwb-ql. Dời CẢ nút ⇒ giữ nguyên tay bắt nw-thanh.js gắn sẵn.
+    (function () {
+      var mq = window.matchMedia('(max-width:640px)'), cot = $('#nwbQlCot');
+      if (!cot) return;
+      var cho = cot.parentNode, sau = cot.nextSibling;
+      function datMenuDt() {
+        if (mq.matches) { if (cot.parentNode !== $('#menuNho')) $('#menuNho').insertBefore(cot, $('#mnDs')); }
+        else if (cot.parentNode !== cho) cho.insertBefore(cot, sau);
+        menuNho(false);
+      }
+      datMenuDt();
+      if (mq.addEventListener) mq.addEventListener('change', datMenuDt); else if (mq.addListener) mq.addListener(datMenuDt);
+      cot.addEventListener('click', function (e) { if (e.target.closest('.nwb-ql-muc') && mq.matches) menuNho(false); });
+    })();
     $('#mnVer').textContent = 'Trang quản lý · web v' + (A.CFG.PHIEN_BAN || '?');
     $('#moSb').setAttribute('aria-haspopup', 'menu');
     $('#moSb').addEventListener('click', function (e) { e.stopPropagation(); menuNho(!$('#menuNho').classList.contains('mo')); });
@@ -14590,7 +14742,7 @@ tr.qm-hang-tam td{background:#fffbeb}
   moCong();   // v1.176.0 — luôn qua cửa: phiên thầy thật mới mở trang
 })();
 </script>
-<script src="js/ic-ql.js?v=1"></script>
-<script src="js/nw-thanh.js?v=24"></script>
+<script src="js/ic-ql.js?v=2"></script>
+<script src="js/nw-thanh.js?v=25"></script>
 </body>
 </html>
