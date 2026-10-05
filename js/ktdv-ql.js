@@ -290,7 +290,7 @@
     ]);
   }
 
-  // ----- ảnh đại diện: chọn / kéo thả / dán ảnh ⇒ cắt vuông giữa ⇒ JPEG ≤ 400 px -----
+  // ----- ảnh đại diện: chọn / kéo thả / dán ảnh ⇒ căn trong CatAnh (zoom + khung đầu-vai) ⇒ JPEG ≤ 400 px · catVuong chỉ còn dùng khi chuyển lớp -----
   function catVuong(file, canh) {
     return new Promise(function (ok, hong) {
       var img = new Image(), url = URL.createObjectURL(file);
@@ -305,30 +305,27 @@
       img.src = url;
     });
   }
+  // ⭐ v1.252.0 — KHUNG SỬA + BỘ SƯU TẬP (js/cat-anh.js CatAnh.moKho): mở là sửa ảnh đang dùng; nút máy ảnh nạp ảnh mới;
+  // ảnh cũ nằm trong dải "Ảnh đã dùng" (máy chủ kho-anh.js, khoá = ID ⇒ chuyển học chính vẫn giữ). Lưu ở hộp là lưu luôn.
   function moAnh(h) {
-    var anh = null;
-    var hop = moHop('Ảnh đại diện — ' + h.ten,
-      '<div class="ktq-anh"><div class="ktq-anh-o" tabindex="0">' + (h.anh ? '<img src="' + E(h.anh) + '">' : '<span>Bấm để chọn ảnh<br>hoặc kéo thả / dán (Ctrl+V)</span>') + '</div>' +
-      '<input type="file" accept="image/*" hidden><p class="ktq-goi">Ảnh được cắt vuông ở giữa. Sau này em vào học chính, ảnh này đi theo em.</p></div>', [
-      { chu: 'Xoá ảnh', phu: true, do: true, bam: function (b) { if (!h.anh) return tb('Em chưa có ảnh.'); cho(b); goi('qlKtdv', { viec: 'datAnh', ma: h.ma, xoa: true }).then(function () { dongHop(); tb('Đã xoá ảnh.'); S.ds = null; napHet().then(veDs); }, function (e) { thoi(b); tb(chuLoi(e), true); }); } },
-      { chu: 'LƯU ẢNH', bam: function (b) {
-        if (!anh) return tb('Chọn ảnh trước đã.', true);
-        cho(b, 'Đang lưu…');
-        goi('qlKtdv', { viec: 'datAnh', ma: h.ma, lon: anh }).then(function () { dongHop(); tb('Đã lưu ảnh.'); S.ds = null; napHet().then(veDs); }, function (e) { thoi(b); tb(chuLoi(e), true); });
-      } }
-    ]);
-    var o = hop.than.querySelector('.ktq-anh-o'), inp = hop.than.querySelector('input[type=file]');
-    var nhan = function (f) {
-      if (!f || !/^image\//.test(f.type)) return;
-      catVuong(f, 400).then(function (d) { anh = d; o.innerHTML = '<img src="' + d + '">'; }, function (e) { tb(e.message, true); });
-    };
-    o.onclick = function () { inp.click(); };
-    inp.onchange = function () { nhan(inp.files[0]); };
-    o.addEventListener('dragover', function (e) { e.preventDefault(); o.classList.add('keo'); });
-    o.addEventListener('dragleave', function () { o.classList.remove('keo'); });
-    o.addEventListener('drop', function (e) { e.preventDefault(); o.classList.remove('keo'); nhan(e.dataTransfer.files[0]); });
-    hop.nen.addEventListener('paste', function (e) { var it = [].slice.call(e.clipboardData.items || []).filter(function (x) { return /^image\//.test(x.type); })[0]; if (it) nhan(it.getAsFile()); });
-    o.focus();
+    if (!window.CatAnh || !window.CatAnh.moKho) return tb('Chưa tải được js/cat-anh.js — tải lại trang (Ctrl+F5).', true);
+    var xong = function (chu) { tb(chu); S.ds = null; napHet().then(veDs); };
+    window.CatAnh.moKho({
+      tieuDe: 'Ảnh đại diện — ' + h.ten,
+      taiKho: function () {
+        return goi('qlKtdv', { viec: 'kho', ma: h.ma }).then(function (r) { return { ds: r.ds || [], dung: r.dung || '', hienTai: h.anh || '' }; });
+      },
+      bo: function (id) { return goi('qlKtdv', { viec: 'boKho', ma: h.ma, id: id }); },
+      luu: function (kq) {
+        var x = window.CatAnh.duLieu(kq, 400, 0.86);
+        return goi('qlKtdv', { viec: 'datAnh', ma: h.ma, lon: x.lon, nho: x.nho, cat: x.cat, goc: x.goc || '', gocId: x.gocId || '' })
+          .then(function (r) { xong(r && r.khoLoi ? 'Đã lưu ảnh (chưa cất được vào bộ sưu tập: ' + r.khoLoi + ').' : 'Đã lưu ảnh.'); },
+            function (e) { throw new Error(chuLoi(e)); });
+      },
+      xoa: h.anh ? function () {
+        return goi('qlKtdv', { viec: 'datAnh', ma: h.ma, xoa: true }).then(function () { xong('Đã xoá ảnh.'); }, function (e) { throw new Error(chuLoi(e)); });
+      } : null
+    });
   }
 
   // ----- chuyển sang học chính: qlHocSinh.themHs cùng ID ⇒ (ảnh) qlAnhDaiDien ⇒ qlKtdv.daChuyen -----
@@ -553,6 +550,14 @@
         if (o.kt.taiLai) lam.push('tải lại trang ' + o.kt.taiLai + ' lần');
         if (lam.length) dg.push('Quá trình: ' + lam.join(' · '));
         if (o.kt.gioiThieuMs != null) dg.push('Xem hướng dẫn ' + phut(o.kt.gioiThieuMs) + ' · làm thử sai ' + (o.kt.thuSai || 0) + ' lần');
+        // v1.250.0 (AWord Đợt 471/473, 05/10): lỗi bàn phím em tự báo · chữ tới muộn · loại máy
+        (o.kt.thuLoi || []).forEach(function (x) {
+          dg.push('<span class="ktbc-bpl">⌨️ <b>Em báo bàn phím lỗi</b> ở câu thử ' + x.cau + ' · máy nhận: <code>' + E(x.chu || '') + '</code>' + (x.may ? ' · ' + E(x.may) : '') + '</span>');
+        });
+        if ((o.kt.thuTre || []).length) dg.push('Chữ tới muộn lúc làm thử: <b>' + o.kt.thuTre.length + ' lần</b> (máy đã đợi rồi chấm lại)');
+        var tre = rv.filter(function (r) { return r.tre; }).length;
+        if (tre) dg.push('Chữ cuối tới muộn ở <b>' + tre + ' câu</b> bài thật (máy đã bổ sung)');
+        if (o.kt.may) dg.push('Thiết bị: ' + E(o.kt.may));
         return '<div class="ktbc-pt-o"><div class="ktbc-pt-ten">' + o.b.ma + '. ' + E(o.b.ten) + '</div><ul>' + dg.map(function (x) { return '<li>' + x + '</li>'; }).join('') + '</ul>' + bieuDo(o) + '</div>';
       }).join('') + '</div>';
       // bảng từng câu
@@ -742,8 +747,6 @@
     '.ktq-mk{display:flex;gap:10px} .ktq-mk div{flex:1;background:var(--xanh-nhat);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column}' +
     '.ktq-mk span{font-size:12px;color:var(--mo);font-weight:700} .ktq-mk b{font-size:20px;letter-spacing:.04em;user-select:all}' +
     '.ktq-goi{color:var(--mo);font-size:12.5px;margin:10px 0} .ktq-tn{width:100%;font:500 13px var(--font);border:1px solid var(--vien-dam);border-radius:10px;padding:10px;resize:vertical}' +
-    '.ktq-anh{display:flex;flex-direction:column;align-items:center} .ktq-anh-o{width:220px;height:220px;border-radius:50%;border:2px dashed var(--vien-dam);display:grid;place-items:center;text-align:center;color:var(--nhat);font-size:13px;cursor:pointer;overflow:hidden}' +
-    '.ktq-anh-o.keo{border-color:var(--xanh);background:var(--xanh-nhat)} .ktq-anh-o img{width:100%;height:100%;object-fit:cover}' +
     '.ktq-menu{position:fixed;z-index:125;background:#fff;border:1px solid var(--vien);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.15);padding:6px;display:flex;flex-direction:column;min-width:220px}' +
     '.ktq-menu button{border:0;background:none;text-align:left;padding:9px 12px;border-radius:8px;font:600 13.5px var(--font);cursor:pointer;color:var(--chu)} .ktq-menu button:hover{background:#F2F6F5}' +
     '.ktq-toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,20px);opacity:0;transition:.25s;z-index:200;background:#16232A;color:#fff;padding:10px 16px;border-radius:10px;font:600 13.5px var(--font);max-width:90vw}' +
@@ -768,6 +771,7 @@
     '.c-dung{color:#1F7A50;font-weight:800} .c-tam{color:#2D7FB8;font-weight:800} .c-nhe{color:#B9781C;font-weight:800} .c-nang{color:#C93A3F;font-weight:800} .nhat{color:var(--nhat)}' +
     '.ktbc-pt{display:flex;flex-direction:column;gap:12px} .ktbc-pt-o{border:1px solid var(--vien);border-radius:12px;padding:10px 14px} .ktbc-pt-ten{font-weight:800;font-size:13.5px}' +
     '.ktbc-pt ul{margin:6px 0;padding-left:18px;font-size:13px;line-height:1.6} .ktbc-pt .canh{color:#B4363B} .ktbc-pt .tot{color:#1F7A50}' +
+    '.ktbc-pt .ktbc-bpl{display:inline-block;background:#FFF6E5;border:1px solid #F1C27A;border-radius:8px;padding:1px 8px;color:#633806} .ktbc-bpl code{font-size:12px}' +
     '.ktbc-bd-chu{font-size:11px;color:var(--mo);display:flex;align-items:center;gap:4px;flex-wrap:wrap} .ktbc-bd-chu i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-left:6px}' +
     '.ktbc-nx label{display:flex;flex-direction:column;gap:4px;margin-bottom:10px;font-weight:800;font-size:13px} .ktbc-nx textarea{font:500 13.5px var(--font);border:1px solid var(--vien-dam);border-radius:10px;padding:10px;resize:vertical;line-height:1.55}' +
     '.ktbc-nx .in-chu{display:none;white-space:pre-wrap;font-weight:500;font-size:13.5px;line-height:1.55}' +
