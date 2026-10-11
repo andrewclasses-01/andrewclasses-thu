@@ -14,7 +14,7 @@ window.MYLESSON_CONFIG = {
 
   // Phiên bản web — hiện nhỏ ở chân trang, để biết máy đang chạy bản nào
   // (GitHub Pages giữ cache ~10 phút, nhìn số này là biết bản mới về chưa).
-  PHIEN_BAN: '1.309.0',
+  PHIEN_BAN: '1.310.0',
 
   // ---- ID QUẢN TRỊ CỦA THẦY (v1.176.0, 29/09/2026) ----
   // Chuỗi BĂM SHA-256 của ID quản trị (viết hoa, bỏ khoảng trắng). Gõ ID này ở màn đăng nhập
@@ -29,6 +29,10 @@ window.MYLESSON_CONFIG = {
   // vào trang thì truyền được tên học sinh sang, khỏi bắt các em gõ tên.
   // Trỏ THẲNG domain riêng — đường github.io cũ bị chuyển hướng 301 mất 1 vòng.
   AWORD: 'https://aword.andrewclasses.com',
+
+  // ⭐ 11/10/2026 — Kho TÀI LIỆU HTML myDocument (video hướng dẫn nhúng iframe trong bài khóa học).
+  // `window.AC_DOC_GOC` chỉ có ở máy chủ xem trước trên máy thầy (trỏ myDocument chạy trên máy).
+  DOC_GOC: window.AC_DOC_GOC || 'https://document.andrewclasses.com/',
 
   // Kho FILE NGHE (v1.7.0, 19/08/2026) — repo RIÊNG `myLesson-audio`.
   // Trang ghép: <KHO_NGHE>/<LEVEL>/<mã bài nghe>.mp3 — LEVEL suy ra từ chính mã
