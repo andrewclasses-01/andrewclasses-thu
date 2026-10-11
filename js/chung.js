@@ -344,11 +344,23 @@
     if (!b) return a;
     return String(b.capNhat || '') >= String(a.capNhat || '') ? b : a;
   }
-  // Đè mảng bài của MỘT lớp từ kho lên `dl.bai` khi kho mới hơn mốc chung của bai.json
+  // Đè mảng bài của MỘT lớp từ kho lên `dl.bai` khi kho mới hơn mốc CỦA LỚP ĐÓ trong bai.json
   // (hoặc bai.json chưa có lớp đó).
-  function apBaiKho(dl, mocTinh, doc) {
+  // ⛔⛔ v1.302.0 (audit 11/10/2026) — so MỐC THEO LỚP (`capNhatLop[lop]`, app v2.154.0 trở đi đóng
+  //    mỗi lần lưu/xoá bài của lớp đó), KHÔNG so với `capNhat` chung cả file: máy A đẩy lớp A làm
+  //    mốc chung mới hơn ⇒ bản bai.json CŨ của lớp B (máy A chưa kéo bài máy B vừa đẩy) thắng kho
+  //    lớp B ⇒ bài máy B BIẾN MẤT trên web dù cả hai máy đều báo xong.
+  //    · bai.json ĐỜI MỚI (có `capNhatLop`) mà THIẾU lớp này ⇒ mảng bài lớp đó trong file có từ TRƯỚC
+  //      khi đổi nếp (chưa lần nào lưu lại bằng app mới) ⇒ cũ hơn kho ⇒ mốc rỗng, kho thắng.
+  //    · bai.json ĐỜI CŨ (không có `capNhatLop`) ⇒ lùi về mốc chung như trước (không làm tốt hơn được).
+  function mocCuaLop(baiTinh, lop) {
+    var m = baiTinh && baiTinh.capNhatLop;
+    if (m && typeof m === 'object') return String(m[lop] || '');
+    return String((baiTinh && baiTinh.capNhat) || '');
+  }
+  function apBaiKho(dl, baiTinh, doc) {
     if (!doc || !doc.lop || !Array.isArray(doc.bai)) return;
-    if (String(doc.capNhat || '') >= String(mocTinh || '') || !dl.bai[doc.lop]) dl.bai[doc.lop] = doc.bai;
+    if (String(doc.capNhat || '') >= mocCuaLop(baiTinh, doc.lop) || !dl.bai[doc.lop]) dl.bai[doc.lop] = doc.bai;
   }
   // Tài liệu bài xin sớm ở som.js chỉ dùng được khi đoán ĐÚNG lớp.
   function baiSomCua(maLop) {
@@ -407,19 +419,19 @@
         // là nó rơi mất TẠI ĐÂY — mọi hàm tra cứu vẫn đúng mà trang vẫn hỏng, không một
         // tiếng động (đã mất một lượt kiểm mới tìm ra, 08/09/2026).
         var dl = { lop: lopDung.lop || [], khoa: lopDung.khoa || [], bai: baiTinh.bai || {} };
-        var mocTinh = baiTinh.capNhat || '';
         // ⭐ v1.119.0 — BÀI: dashboard đè mọi lớp; trang học sinh đè đúng lớp của em.
+        // v1.302.0 — mốc so theo lớp (`mocCuaLop`), truyền nguyên `baiTinh`.
         if (quanLy) {
           var ds = r[5] || [];
-          for (var i = 0; i < ds.length; i++) apBaiKho(dl, mocTinh, ds[i]);
+          for (var i = 0; i < ds.length; i++) apBaiKho(dl, baiTinh, ds[i]);
           return dl;
         }
         var maLop = lopDoan;
         try { var em = emDangHoc(dl); if (em && em.lop) maLop = em.lop; } catch (e) { /* chưa đăng nhập */ }
         if (!maLop) return dl;                       // màn đăng nhập: không cần bài
-        if (maLop === lopDoan) { apBaiKho(dl, mocTinh, r[5]); return dl; }
+        if (maLop === lopDoan) { apBaiKho(dl, baiTinh, r[5]); return dl; }
         // đoán sai lớp (em ở 2 nơi vừa đổi nơi, `?nhu=` không kèm `?lop=`) ⇒ xin thêm 1 lượt
-        return docKhoWeb('bai_' + maLop).then(function (doc) { apBaiKho(dl, mocTinh, doc); return dl; });
+        return docKhoWeb('bai_' + maLop).then(function (doc) { apBaiKho(dl, baiTinh, doc); return dl; });
       });
     return nhoDl;
   }
@@ -724,7 +736,10 @@
   }
 
   function napJson(duong) {
-    var p = laySom(duong) || fetch((/^data\//.test(duong) ? (window.AC_GOC_DL || '') : '') + duong + '?t=' + Date.now(), { cache: 'no-store' });
+    // v1.304.0 — file dữ liệu data/*: 'no-cache' (hỏi lại máy chủ, 304 khi không đổi) thay vì ?t= + no-store (luôn tải lại). Xem som.js layDl.
+    var p = laySom(duong) || (/^data\//.test(duong)
+      ? fetch((window.AC_GOC_DL || '') + duong, { cache: 'no-cache' })
+      : fetch(duong + '?t=' + Date.now(), { cache: 'no-store' }));
     return p
       .then(function (r) { return r.ok ? r.json() : null; })
       .catch(function () { return null; });
@@ -763,6 +778,10 @@
      thiếu, bảng kết quả, xét chặng STAGE đều đọc danh sách này. So chuỗi 'YYYY-MM-DD'
      là đủ (cùng khuôn, không cần Date). */
   function ngayGiaoBai(b) {
+    // ⛔ v1.303.0 (audit 11/10/2026) — ƯU TIÊN `giaoLuc` (lúc đẩy LẦN ĐẦU, app giữ nguyên khi đẩy lại — app v2.142.0) rồi mới tới
+    //    `taoLuc` (bị đè bằng NGÀY ĐẨY LẠI mỗi lần sửa bài ⇒ em vào lớp giữa hai lần đẩy bị tính oan vào sĩ số bài).
+    var g = String((b && b.giaoLuc) || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(g)) return g;
     var t = String((b && b.taoLuc) || '').slice(0, 10);
     if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
     var h = String(hanCua(b) || '').slice(0, 10);
@@ -785,7 +804,9 @@
 
      Từ đây:
        `caLopDayDu(l)`    = TRỌN danh sách lớp — lưới em, THỜI LƯỢNG, leaderboard, avatar.
-       `emKhongTinh(l,b)` = [{ten, ly:'tay'|'muon', vao}] — ô "Không tính ở bài này".
+       `emKhongTinh(l,b)` = [{ten, ly:'tay'|'muon'|'thu', vao}] — ô "Không tính ở bài này".
+       ⭐ v1.309.0 (11/10/2026) — HỌC SINH HỌC THỬ (`h.thu`, roster status 'thu'): LUÔN ở đây với ly 'thu', mọi bài,
+       mọi chặng ⇒ không vào x/N, không giữ chặng STAGE, xếp cuối chữ xám (xepHangAct). Không ↩ được (đổi ở Quản lý HS).
        `caLopCuaBai(l,b)` = em ĐANG TÍNH (đầy đủ trừ không tính) — x/N, "thiếu", xét chặng.
      ⛔ `caLopCuaBai` GIỮ NGUYÊN TÊN vì 4 trang đang gọi nó cho phép ĐẾM; chỗ nào cần
      "cả lớp để HIỆN" thì gọi `caLopDayDu`. Đổi nhầm hai cái là hoặc bêu em không thuộc bài,
@@ -816,15 +837,17 @@
         var m = {}; boQuaChangCua(b, s).forEach(function (t) { m[khoaTen(t)] = 1; }); return m;
       });
       return ((l && l.hocSinh) || []).filter(function (h) {
+        if (h.thu) return true;
         var k = khoaTen(h.ten);
         return bang.length && bang.every(function (m) { return m[k]; });
-      }).map(function (h) { return { ten: h.ten, ly: 'tay', vao: String(h.vao || '') }; });
+      }).map(function (h) { return { ten: h.ten, ly: h.thu ? 'thu' : 'tay', vao: String(h.vao || '') }; });
     }
     var bo = {}, tinh = {}, ra = [];
     boQuaCua(b).forEach(function (t) { bo[khoaTen(t)] = 1; });
     tinhCaCua(b).forEach(function (t) { tinh[khoaTen(t)] = 1; });
     ((l && l.hocSinh) || []).forEach(function (h) {
       var k = khoaTen(h.ten);
+      if (h.thu) { ra.push({ ten: h.ten, ly: 'thu', vao: String(h.vao || '') }); return; }
       if (bo[k]) { ra.push({ ten: h.ten, ly: 'tay', vao: String(h.vao || '') }); return; }
       // ↩ của thầy (`tinhCa`) thắng luật ngày vào lớp.
       if (emVaoMuon(h, b, l) && !tinh[k]) ra.push({ ten: h.ten, ly: 'muon', vao: String(h.vao || '') });
@@ -1103,7 +1126,34 @@
       if (window.NWP && window.NWP.gac) window.NWP.gac(em.ma);
       else console.warn('[phien] trang này chưa nạp js/nw-phien.js — không canh cửa được');
     }
+    // ⭐ v1.309.0 — HỌC SINH HỌC THỬ: gắn cờ `thu` + ngày vào lớp (kể cả thầy xem như em ⇒ thấy đúng trang em thấy).
+    var ht = emHocThu(dl, em);
+    if (ht) { em.thu = true; em.vao = String(ht.vao || '').slice(0, 10); }
     return em;
+  }
+
+  /* ⭐⭐ v1.309.0 (11/10/2026, thầy chốt) — HỌC SINH HỌC THỬ (`h.thu` trong lop.json, roster status 'thu').
+       · chỉ thấy thẻ bài giao TỪ NGÀY VÀO (thẻ còn hạn vào ngày đó vẫn hiện) — `theChoHocThu`
+       · ẩn chat lớp, tin nhắn chỉ thấy thầy · x/N + STAGE không tính, xếp hạng cuối chữ xám (`emKhongTinh` ly 'thu').
+     Lên học chính (dashboard) ⇒ mất cờ ⇒ thấy toàn bộ bài lớp như học sinh chính. */
+  function emHocThu(dl, em) {
+    if (!em || em.dacBiet || em.vaiTro === 'gv') return null;
+    var l = lopTheoMa(dl, em.lop), ma = chuanMa(em.ma);
+    var ds = ((l && l.hocSinh) || []).filter(function (h) { return chuanMa(h.ma) === ma; });
+    var h = ds.filter(function (x) { return !x.bs; })[0] || ds[0];
+    return h && h.thu ? h : null;
+  }
+  function tenHocThu(l) {   // tên các em học thử của một lớp/khóa (bảng sao, @nhắc…)
+    return ((l && l.hocSinh) || []).filter(function (h) { return h.thu; }).map(function (h) { return h.ten; });
+  }
+  function theChoHocThu(b, vao) {
+    vao = String(vao || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(vao)) return true;
+    var g = ngayGiaoBai(b);
+    if (g && g >= vao) return true;
+    var m = mocHan(b);
+    if (m == null || !isFinite(m)) return !g;
+    return m >= Date.parse(vao + 'T00:00:00+07:00');   // hạn còn tới ngày em vào ⇒ vẫn hiện
   }
 
   // Chuỗi query (KHÔNG có dấu & hay ? ở đầu) để GIỮ NGUYÊN chế độ xem khi
@@ -2387,9 +2437,27 @@
   // (chắc chắn nhất); không có thì lùi về so tên lỏng với tên kho đang giữ.
   // `dsDb` (tuỳ chọn): [{ten}] danh sách HS ĐẶC BIỆT của lớp (`l.hsDb`) — tên nào
   // trùng danh sách này bị CHẶN dò ảnh hoàn toàn, xem chú thích ⭐⭐ ở trên.
+  // ⭐ v1.306.0 (11/10/2026) — HIỆN NGAY ẢNH TRONG MÁY, KIỂM KHO SAU (thầy chốt).
+  // Ca thật: hộp ÔN TẬP lớp Nền tảng 4 — 16 em cũ có file tĩnh hiện tức thì, còn Gia Hân / Minh Lâm / Thanh Mai
+  // (em MỚI, chỉ có ảnh trong kho `lessonAvatar`, KHÔNG có file `assets/avatar/…`) đứng chữ tắt khá lâu. Vì bản
+  // cũ quá 10 phút (`AV_KIEM_GIAY`) là CHỜ lượt hỏi mốc qua mạng rồi mới đè — dù ảnh vẫn nằm sẵn trong localStorage.
+  // Nay: có bản trong máy ⇒ đè NGAY từ bản đó, rồi mới chờ `napAvatarKho()`; kho trả gói KHÁC (mốc đổi / tải lại
+  // 24 giờ) thì đè lần hai. Không tốn thêm lượt đọc nào — lượt hỏi kho vẫn y như cũ, chỉ không bắt màn hình chờ nó.
+  // ⛔ So `em !== cu.em` theo THAM CHIẾU: `napAvatarKho` trả đúng object `cu.em` khi mốc không đổi / kho hỏng ⇒ khỏi quét DOM lần hai.
   function deAvatarKho(lopGoc, dsEm, dsDb) {
+    var cu = null, soDau = 0;
+    try {
+      cu = lopGoc ? docAvatarMay(avSlugLop(lopGoc)) : null;
+      if (cu) soDau = deAnhLop(lopGoc, cu.em, dsEm, dsDb);
+    } catch (e) { cu = null; }
     return napAvatarKho(lopGoc).then(function (em) {
-      var ids = Object.keys(em);
+      if (cu && em === cu.em) return soDau;
+      return deAnhLop(lopGoc, em, dsEm, dsDb);
+    })['catch'](function () { return soDau; });
+  }
+
+  function deAnhLop(lopGoc, em, dsEm, dsDb) {
+      var ids = Object.keys(em || {});
       if (!ids.length) return 0;
 
       var theoTen = {};                       // mã số của từng em, tra theo tên
@@ -2464,7 +2532,6 @@
         }
       }
       return de;
-    })['catch'](function () { return 0; });
   }
 
   // Bật một lần cho cả trang: đè ngay, rồi đè lại mỗi khi trang vẽ thêm ô avatar mới
@@ -3387,7 +3454,8 @@
      ⛔ Kho lỗi/mất mạng thì coi như KHÔNG có bài mới — thà thiếu một chấm đỏ còn hơn
      doạ em bằng chấm đỏ oan (cùng tinh thần "đừng lùi mù" của luật 8). */
   function coBaiChuaXong(dl, maLop, tenEm) {
-    var ds = baiCuaLop(dl, maLop).filter(conHan).slice(0, 3);
+    var lx = lopTheoMa(dl, maLop), hx = lx && ((lx.hocSinh || []).filter(function (h) { return h.thu && h.ten === tenEm; })[0]);
+    var ds = baiCuaLop(dl, maLop).filter(conHan).filter(function (b) { return !hx || theChoHocThu(b, hx.vao); }).slice(0, 3);   // v1.309.0 học thử
     var acts = [];
     for (var i = 0; i < ds.length; i++) {
       var k = actCuaBai(ds[i]);
@@ -3643,6 +3711,7 @@
     // ⭐⭐ v1.95.0 — em nào có mặt ở một bài (bỏ em vào lớp sau ngày giao)
     ngayGiaoBai: ngayGiaoBai, emCoMatOBai: emCoMatOBai, caLopCuaBai: caLopCuaBai,
     caLopDayDu: caLopDayDu, emKhongTinh: emKhongTinh, emVaoMuon: emVaoMuon,
+    emHocThu: emHocThu, theChoHocThu: theChoHocThu, tenHocThu: tenHocThu,   // v1.309.0 học sinh học thử
     xepHangAct: xepHangAct,
     // ⭐⭐ v1.82.0 — HỌC SINH ĐẶC BIỆT (phụ huynh luyện bài cùng con)
     emDacBietTheoMa: emDacBietTheoMa,

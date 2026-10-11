@@ -94,6 +94,13 @@
     function lay(u) {
       try { return fetch(u, { cache: 'no-store' }); } catch (e) { return null; }
     }
+    // ⚡ v1.304.0 (audit 11/10/2026, đợt tốc độ) — lop.json/bai.json: 'no-cache' + KHÔNG ?t= ⇒ trình duyệt VẪN hỏi lại máy chủ
+    //    mỗi lần (dữ liệu tươi y như cũ) nhưng file không đổi thì nhận 304 thay vì tải lại ~20 KB nén + đọc lại 166 KB JSON.
+    //    Bản sống là kho tức thì lessonWeb/* (luôn tươi, bản mới hơn thắng — chung.js moiHon/mocCuaLop) nên kể cả CDN có trả
+    //    bản cũ vài phút cũng không sai gì.
+    function layDl(u) {
+      try { return fetch(u, { cache: 'no-cache' }); } catch (e) { return null; }
+    }
     function conDem(khoa, giay) {
       try {
         var o = JSON.parse(sessionStorage.getItem(khoa) || 'null');
@@ -113,8 +120,8 @@
     } catch (e) { lopDoan = ''; }
     var gocDl = (/^andrewclasses-01\.github\.io$/.test(location.hostname) || location.port === '8825') ? 'https://andrewclasses.com/' : '';   // 29/09: trang thử đọc dữ liệu trang thật (= config.js AC_GOC_DL)
     window.__napSom = {
-      'data/lop.json': lay(gocDl + 'data/lop.json?t=' + t),
-      'data/bai.json': lay(gocDl + 'data/bai.json?t=' + t),
+      'data/lop.json': layDl(gocDl + 'data/lop.json'),
+      'data/bai.json': layDl(gocDl + 'data/bai.json'),
       lessonHan:  (goc && !conDem('awc_hansua2', 60)) ? lay(goc + 'lessonHan?pageSize=300' + khoa) : null,
       lessonNghi: (goc && !conDem('awc_nghi2', 60))   ? lay(goc + 'lessonNghi?pageSize=100' + khoa) : null,
       'lessonWeb/lop': goc ? lay(goc + 'lessonWeb/lop?key=' + encodeURIComponent(db.apiKey)) : null,
@@ -2002,7 +2009,7 @@ body.mo-menu .side.trai{transform:none}
   stroke-linecap:round; stroke-linejoin:round}
 </style>
 <script src="js/cai-app.js?v=2"></script>   <!-- v1.245.0 nạp ĐỒNG BỘ trước script dựng menu ☰ -->
-<script src="js/day.js?v=5"></script>   <!-- v1.255.0 thông báo đẩy (nút "Bật thông báo" trong menu ☰) -->
+<script src="js/day.js?v=6"></script>   <!-- v1.255.0 thông báo đẩy (nút "Bật thông báo" trong menu ☰) -->
 </head>
 <body>
 
@@ -2128,11 +2135,11 @@ body.mo-menu .side.trai{transform:none}
 
 <div class="toast" id="toast"></div>
 
-<script src="config.js?v=250"></script>
+<script src="config.js?v=258"></script>
 <script src="js/thay-vao.js?v=3"></script>
 <script src="js/app-check.js?v=4"></script>
 <script src="js/ve-doc.js?v=2"></script>   <!-- 02/10/2026 v1.226.0 vé đọc kho (khoá đọc người ngoài GĐ2) -->
-<script src="js/chung.js?v=84"></script>
+<script src="js/chung.js?v=89"></script>
 <script src="js/nw-phien.js?v=9"></script>
 <!-- ⭐ v1.37.0 — cần `AWChat.tinMoiNhat` cho chấm đỏ tin nhắn mới.
      File này nạp SDK Firebase KIỂU LƯỜI: không hỏi kho thì không tải gì. -->
@@ -2140,7 +2147,7 @@ body.mo-menu .side.trai{transform:none}
 <script src="js/online.js?v=2"></script>   <!-- v1.211.0 — báo "em đang online" cho dashboard -->
 <!-- ⭐ v1.38.0 — VÍ SAO + ĐỔI QUÀ dùng chung cho cả ba trang học sinh.
      File này tự chèn css/vi-qua.css, trang không phải khai thêm. -->
-<script src="js/vi-qua.js?v=7"></script>
+<script src="js/vi-qua.js?v=8"></script>
 <script>
 /* ============================================================
    TRANG BÀI TẬP — bản THẬT (web v1.9.0, 23/08/2026), dùng chung cho ba dạng
@@ -2275,7 +2282,7 @@ var veMenuChinh = AWVi.dungMenu({
   hop: $('#dsMenu'),
   oSao: document.querySelector('.vi-to'),
   layCtx: function(){
-    return { lop: LOP, lopMa: LOP_DL, ten: TOI, ma: MA_HS, caLop: CA_LOP, baoToast: baoToast };
+    return { lop: LOP, lopMa: LOP_DL, ten: TOI, ma: MA_HS, caLop: CA_LOP, thuLop: A.tenHocThu(LOP_BAI), baoToast: baoToast };
   }
 });
 
@@ -2902,6 +2909,10 @@ var daSuoiMa = false;
 function suoiAWord(url){
   try {
     fetch(url).catch(function(){});
+    // ⛔ v1.302.0 (audit 11/10/2026) — làm nóng TỪNG module bằng fetch() CHỈ trên Chromium (cùng nếp AWord play.html Đợt 481):
+    //    WebKit (iPad/iPhone) KHÔNG gộp fetch() với modulepreload/import của khung AWord ⇒ mỗi file JS tải tới 3 lần (~181 KB × 3)
+    //    đúng lúc em bấm READY trên mạng lớp. `navigator.userAgentData` chỉ Chromium có.
+    if (!navigator.userAgentData) return;
     if (daSuoiMa) return;
     daSuoiMa = true;
     fetch(AWORD + '/play.html')
@@ -6771,7 +6782,7 @@ function veDauTrang(){
      1 lượt đọc, có đệm 60 giây trong `A.chatChuaDoc`. Bấm được vào khung chat
      chỉ có ở trang lớp, nên ở đây chấm chỉ HIỆN, không tắt. */
   // v1.82.0 — HS đặc biệt: không có phòng chat nào để "chưa đọc" cả.
-  if (!LA_DAC_BIET) A.chatChuaDoc(LOP_DL, MA_HS).then(A.veChamDo)['catch'](function(){});
+  if (!LA_DAC_BIET && !(EM && EM.thu)) A.chatChuaDoc(LOP_DL, MA_HS).then(A.veChamDo)['catch'](function(){});   // v1.309.0 học thử: không chat lớp
   var tenTren = document.querySelector('.who .ten');
   if (tenTren) tenTren.textContent = TOI;
   var tenSide = document.querySelector('.side-head .ten');
@@ -6897,6 +6908,8 @@ A.napDuLieu().then(function(dl){
      về trang lớp kèm cờ `khoa=1` để bên đó báo một câu. (Bài ẩn/xoá thì
      `A.baiCuaLop` cửa học sinh đã bỏ sẵn → rơi vào `!BAI` ở trên.) */
   if (A.trangThaiThe(BAI) === 'khoa' && !LA_GV) { veTrangLop('khoa=1'); return; }
+  // ⭐ v1.309.0 — học sinh học thử mở thẳng địa chỉ thẻ giao TRƯỚC ngày em vào ⇒ về trang lớp (thẻ đó không hiện cho em).
+  if (EM.thu && !LA_GV && !A.theChoHocThu(BAI, EM.vao)) { veTrangLop(); return; }
 
   /* ⭐⭐ v1.95.0 (13/09/2026) — danh sách em ĐANG TÍNH ở bài này (`A.caLopCuaBai`: bỏ em vào
      lớp SAU ngày giao + em thầy bấm ✕) — cùng luật với thẻ bên lop.html/dashboard. ⛔ Phải
