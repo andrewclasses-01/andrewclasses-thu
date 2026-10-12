@@ -1610,6 +1610,11 @@ i.m-vang{background:var(--m-vang)} i.m-duong{background:var(--m-duong)} i.m-la{b
 .pop-ds.ngang{display:flex; flex-wrap:wrap; align-items:flex-start; gap:0 14px}
 .xh-cot{flex:1 1 214px; min-width:0}
 .xh-cot .doi-vach{margin-left:0; margin-right:0}
+/* thiết kế K10 7 (12/10/2026, thầy chốt) — pop-up kết quả lesson CHƯƠNG: tab cho MỌI bước; bước KHÔNG có điểm (đọc sách,
+   video mẫu, gửi Zalo) chỉ hiện "Đã xong" (xanh) / "—" (chưa xong, đỏ) — không hạng, không giờ. */
+.xh-dong.tay{grid-template-columns:22px minmax(0,1fr) auto}
+.xh-dong.tay .xh-diem{padding:0 4px; font-size:11.5px}
+.xh-dong.tay.du .xh-diem,.xh-dong.tay.du .xh-hang{color:var(--m-la)}
 .xh-dong{display:grid; grid-template-columns:22px minmax(0,1fr) 3.6ch var(--w-giay,4.8ch);   /* v1.263.4: --w-giay = cột giờ nới theo số dài nhất CỦA BẢNG */
   gap:6px; align-items:center; padding:0 6px; border-radius:7px;
   height:24px; font-weight:700; font-size:12px; line-height:1}
@@ -5643,6 +5648,7 @@ tr.qm-hang-tam td{background:#fffbeb}
       if (CHUONG_TD !== bang || CHUONG_TD[b.id] !== 'dang') return;   // đã đổi lớp (chonLop thay bảng mới) ⇒ bỏ
       CHUONG_TD[b.id] = ra;
       veTat();
+      if (POP_TAB.b && POP_TAB.b.id === b.id && $('#popNen').classList.contains('mo')) { veTabsDb(); veRuotTabDb(); }   // K10 7
     });
   }
   function hangBuocChuongKh(b, x, i, t) {
@@ -6472,6 +6478,30 @@ tr.qm-hang-tam td{background:#fffbeb}
   // `khoa.html` có bản chép (`moPopKetQua`) — sửa hình dạng thì sửa cả hai.
   // ================================================================
   var POP_TAB = { b: null, t: null, i: 0 };
+/* ⭐ thiết kế ƯU TIÊN PHẦN CÒN THIẾU (12/10/2026, thầy chốt "mọi nơi") — bấm thanh tiến trình ⇒ pop-up mở ĐÚNG phần lớp còn thiếu
+     đầu tiên: pop-up dạng TAB chọn tab đó; dạng CỘT cuộn tới cột đó (máy tính đủ chỗ thì các cột đã nằm ngang, điện thoại cột
+     xếp dọc ⇒ cuộn xuống); STAGE chọn chặng SỚM NHẤT còn em chưa xong. BẢN CHÉP ở lop.html · khoa.html · dashboard.html.
+     Khung pop-up lúc mở còn đang trượt (transform scale) ⇒ đo bằng rect rồi chia tỉ lệ. */
+  function cuonPopToi(el){
+    var ds = document.getElementById('popDs');
+    if (!el || !ds) return;
+    requestAnimationFrame(function(){   // chờ khung pop-up hiện (đo lúc còn ẩn ra 0)
+      var r = ds.getBoundingClientRect(), s = (r.height / ds.offsetHeight) || 1;
+      ds.scrollTop += (el.getBoundingClientRect().top - r.top) / s - 2;
+    });
+  }
+  function cuonTabPopToi(){
+    var bar = document.getElementById('popTabs'), t = bar && bar.querySelector('.pop-tab.on');
+    if (!t) return;
+    requestAnimationFrame(function(){
+      var r = bar.getBoundingClientRect(), s = (r.width / bar.offsetWidth) || 1;
+      bar.scrollLeft += (t.getBoundingClientRect().left - r.left) / s - 12;
+    });
+  }
+  function actThieuDb(a, t) {   // act còn em (đang tính) chưa đủ điểm — cùng luật "full" của `veCotActDb`
+    var c = CHUAN[a.ma], moc = (c && !c.tru) ? c.dinh : 0;
+    return xepActDb(a.ma, t).some(function (e) { return !e.mien && (e.chua || e.diem < moc); });
+  }
   function veCotActDb(a, t) {
     var ds = xepActDb(a.ma, t);
     var daLam = daLamDb(ds);
@@ -6500,21 +6530,62 @@ tr.qm-hang-tam td{background:#fffbeb}
     }).join('');
     return '<div class="xh-cot">' + vach + hang + '</div>';
   }
+  // thiết kế K10 7 (12/10/2026, thầy chốt) — lesson CHƯƠNG: tab cho MỌI bước (`POP_TAB.ds`); bước không có điểm
+  // (`tay`: đọc sách / video mẫu / gửi Zalo) = danh sách "Đã xong" / "—", đọc từ `CHUONG_TD` (cùng nguồn hàng BƯỚC trên thẻ).
+  function dsTabDb(b, t) {
+    if (b.kieu !== 'CHUONG' || !(b.bt || []).length) return t.acts;
+    return b.bt.map(function (x, i) {
+      var m = /^\s*B[UƯ]ỚC\s*(\d{1,2})/i.exec(String(x.tieuDe || ''));
+      var nhan = 'BƯỚC ' + (m ? m[1] : (i + 1));
+      if (x.ma && (x.loai === 'acts' || x.loai === 'act')) {
+        var a = t.acts.filter(function (y) { return y.ma === x.ma; })[0];
+        if (a) return a;
+      }
+      return { tay: true, buoc: x, ten: x.tieuDe || nhan, nhanBuoc: nhan };
+    });
+  }
+  function veCotTayDb(a, t, b) {
+    var td = CHUONG_TD[b.id];
+    var vach = function (phu) {
+      return '<span class="doi-vach"><span class="line"></span><span class="lb">' + A.chuAnToan(a.ten) +
+        '<span class="tong">' + phu + '</span></span><span class="line"></span></span>';
+    };
+    if (!td || td === 'dang') { docChuongCuaBai(b, LOP_CHON); return '<div class="xh-cot">' + vach('đang đọc…') + '</div>'; }
+    var mien = (t.khongTinh || []).map(function (x) { return x.ten; });
+    var ds = (t.caLopDu || t.caLop || []).map(function (ten, i) {
+      return { ten: ten, i: i, mien: mien.indexOf(ten) >= 0, xong: xongBuocTayKh(td[ten], a.buoc) };
+    });
+    ds.sort(function (p, q) { return (p.mien - q.mien) || (q.xong - p.xong) || (p.i - q.i); });
+    var n = ds.filter(function (e) { return e.xong && !e.mien; }).length;
+    return '<div class="xh-cot">' + vach(n + '/' + t.siSo + ' đã xong') + ds.map(function (e) {
+      return '<span class="xh-dong tay ' + (e.mien ? 'mien' : (e.xong ? 'du' : 'chua')) + '"' + (e.mien ? ' title="Không tính ở bài này"' : '') + '>' +
+        '<span class="xh-hang">' + (e.xong && !e.mien ? '✓' : '–') + '</span>' +
+        '<span class="xh-ten">' + A.chuAnToan(e.ten) + '</span>' +
+        '<span class="xh-diem">' + (e.xong ? 'Đã xong' : '—') + '</span></span>';
+    }).join('') + '</div>';
+  }
   function veTabsDb() {
-    var t = POP_TAB.t;
-    $('#popTabs').innerHTML = t.acts.map(function (a, i) {
-      var ds = DIEM[a.ma] ? xepActDb(a.ma, t) : [];
-      var daLam = daLamDb(ds);
+    var t = POP_TAB.t, b = POP_TAB.b;
+    $('#popTabs').innerHTML = POP_TAB.ds.map(function (a, i) {
+      var phu;
+      if (a.tay) {
+        var td = CHUONG_TD[b.id];
+        phu = (td && td !== 'dang') ? (t.caLop.filter(function (ten) { return xongBuocTayKh(td[ten], a.buoc); }).length + '/' + t.siSo) : '…';
+      } else {
+        phu = daLamDb(DIEM[a.ma] ? xepActDb(a.ma, t) : []) + '/' + t.siSo;
+      }
       return '<button type="button" class="pop-tab' + (i === POP_TAB.i ? ' on' : '') + '" data-i="' + i + '">' +
-        nhanRowKh(a) + '<span class="tab-so">' + daLam + '/' + t.siSo + '</span></button>';
+        nhanRowKh(a) + '<span class="tab-so">' + phu + '</span></button>';
     }).join('');
   }
   function veRuotTabDb() {
-    var a = POP_TAB.t.acts[POP_TAB.i];
-    $('#popDs').innerHTML = a ? veCotActDb(a, POP_TAB.t) : '';
+    var a = POP_TAB.ds[POP_TAB.i];
+    $('#popDs').innerHTML = !a ? '' : (a.tay ? veCotTayDb(a, POP_TAB.t, POP_TAB.b) : veCotActDb(a, POP_TAB.t));
   }
   function moPopTabAct(b, t) {
-    $('#popPhu').textContent = A.tenBai(b) + (A.maLesson(b) ? ' • ' + A.maLesson(b) : '');
+    $('#popPhu').textContent = (b.kieu === 'CHUONG' && b.noiDung)   // K10 7 — CHƯƠNG: "PHẦN A: CHƯƠNG 1 • <tên chương>" (trước lặp tên 2 lần)
+      ? A.maLesson(b) + ' • ' + String(b.noiDung).trim()
+      : A.tenBai(b) + (A.maLesson(b) ? ' • ' + A.maLesson(b) : '');
     if (!t.acts.length) {
       popRong(0);
       $('#popDs').innerHTML = '<div class="trong">Bài này không có game AWord nào để xếp hạng.</div>';
@@ -6525,10 +6596,17 @@ tr.qm-hang-tam td{background:#fffbeb}
     var k = $('#popKhung');
     k.classList.add('tab');
     $('#popTabs').hidden = false;
-    POP_TAB = { b: b, t: t, i: 0 };
+    POP_TAB = { b: b, t: t, i: 0, ds: dsTabDb(b, t) };
+    for (var iT = 0; iT < POP_TAB.ds.length; iT++) {   // ưu tiên phần còn thiếu
+      var aT = POP_TAB.ds[iT], tdT = CHUONG_TD[b.id];
+      var thieuT = aT.tay ? (!!tdT && tdT !== 'dang' && t.caLop.some(function (ten) { return !xongBuocTayKh(tdT[ten], aT.buoc); }))
+        : actThieuDb(aT, t);
+      if (thieuT) { POP_TAB.i = iT; break; }
+    }
     veTabsDb();
     veRuotTabDb();
     $('#popNen').classList.add('mo');
+    cuonTabPopToi();
   }
   function bamTabPop(e) {
     var n = e.target.closest('.pop-tab');
@@ -6550,6 +6628,11 @@ tr.qm-hang-tam td{background:#fffbeb}
     // v1.113.0 — ruột từng cột tách ra `veCotActDb` (dùng chung với pop-up dạng TAB).
     $('#popDs').innerHTML = t.acts.map(function (a) { return veCotActDb(a, t); }).join('');
     $('#popNen').classList.add('mo');
+    // ưu tiên phần còn thiếu — cuộn tới act ĐẦU TIÊN còn em chưa xong (STAGE trên dashboard cũng đi đường này)
+    var iThieu = -1;
+    t.acts.some(function (a, j) { if (actThieuDb(a, t)) { iThieu = j; return true; } return false; });
+    $('#popDs').scrollTop = 0;
+    if (iThieu > 0) cuonPopToi($('#popDs').querySelectorAll('.xh-cot')[iThieu]);
   }
 
   // ⭐ v1.32.0 — bấm vùng điểm (thanh tiến trình) trong thẻ: bảng gộp CẢ BÀI
