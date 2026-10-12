@@ -1554,6 +1554,10 @@ i.m-vang{background:var(--m-vang)} i.m-duong{background:var(--m-duong)} i.m-la{b
     #E5A20D 58%, var(--chu) 74%);
   background-size:230% 100%; -webkit-background-clip:text; background-clip:text;
   color:transparent; animation:lap-lanh-chu-kh 4.4s ease-in-out infinite}
+/* thiết kế K10 6 (12/10/2026) — thẻ lesson CHƯƠNG: tên "PHẦN A: CHƯƠNG 1 NGÀY 12/10" dài hơn "LESSON 23" ⇒ màn ~1280 bị cắt "NGÀ…".
+   Chữ tự co theo bề ngang khối chữ (container query), trần 19px như cũ, sàn 14px. */
+.the.khoa-hoc.chuong .t-chu{container-type:inline-size}
+.the.khoa-hoc.chuong .t-ten{font-size:clamp(14px, 5.8cqi, 19px)}
 @keyframes lap-lanh-chu-kh{0%{background-position:190% 0} 60%,100%{background-position:-40% 0}}
 @media (prefers-reduced-motion:reduce){ .the.khoa-hoc .t-ten{animation:none; background-position:0 0} }
 .the.khoa-hoc .t-chude{font:600 13.4px/1.4 var(--mono); color:var(--mo); letter-spacing:.01em;
@@ -1562,6 +1566,8 @@ i.m-vang{background:var(--m-vang)} i.m-duong{background:var(--m-duong)} i.m-la{b
 .the.khoa-hoc .td-dong{grid-template-columns:minmax(0,46px) minmax(60px,1fr) minmax(30px,auto) 16px;
   column-gap:8px; min-height:0}
 .the.khoa-hoc .td-ten{font-size:11px; line-height:1.3}
+/* thiết kế K10 1 — thẻ lesson CHƯƠNG: nhãn "BƯỚC n" dài hơn "BT1" ⇒ cột tên 54px (46px cắt "BƯỚC…"). */
+.the.khoa-hoc .the-diem.chuong .td-dong{grid-template-columns:minmax(0,54px) minmax(60px,1fr) minmax(30px,auto) 16px}
 .the.khoa-hoc .td-bar{height:8px}
 .the.khoa-hoc .td-so{font-size:11.5px}
 .the.khoa-hoc .td-so.em-chua{color:#A9B6B3}
@@ -4202,6 +4208,7 @@ tr.qm-hang-tam td{background:#fffbeb}
         });
       }
       return { ten: k.ten, ma: k.ma, mau: k.mau || '', xong: xong, caLop: caA, siSo: caA.length,
+               nhanBuoc: b.kieu === 'CHUONG' ? nhanBuocTheoMaKh(b, k.ma) : '',   // thiết kế K10 5 — tab pop-up "BƯỚC n"
                khongTinh: stageCo ? A.khongTinhCuaAct(l, b, k.ma) : null };
     });
 
@@ -4219,6 +4226,24 @@ tr.qm-hang-tam td{background:#fffbeb}
       });
     }
     var xongHet = (daDoc && acts.length) ? (caLop.length - thieu.length) : null;
+    // ⭐ thiết kế K10 2 (12/10/2026, thầy chốt) — lesson CHƯƠNG: "xong" = xong ĐỦ MỌI BƯỚC (cả sách/video/Zalo, không chỉ act)
+    // ⇒ màu thẻ (xanh đủ / đỏ gấp) + danh sách em thiếu tính trên đủ các bước. Chưa đọc xong tiến độ bước ⇒ xongHet null (không xanh sớm).
+    if (b.kieu === 'CHUONG' && daDoc) {
+      var buocTay = (b.bt || []).filter(function (x) { return !(x.ma && (x.loai === 'acts' || x.loai === 'act')); });
+      if (buocTay.length) {
+        var tdC = CHUONG_TD[b.id];
+        if (!tdC || tdC === 'dang') { xongHet = null; docChuongCuaBai(b, maLop); }
+        else {
+          thieu = [];
+          caLop.forEach(function (ten) {
+            var con = acts.filter(function (a) { return !coTrongDiem(DIEM[a.ma] || [], ten, a.ma); }).length +
+              buocTay.filter(function (x) { return !xongBuocTayKh(tdC[ten], x); }).length;
+            if (con) thieu.push({ ten: ten, so: con });
+          });
+          xongHet = caLop.length - thieu.length;
+        }
+      }
+    }
     // ⭐ #2 — thẻ SPEAKING CHECK (nhận theo tên dạng bài, y hệt lop.html
     // theTuBai()): doiSp đổ vào sau khi đọc Firestore, xem capNhatSpeakingChoBai().
     var laSp = /SP\s*CHECK/i.test(b.dang || '');
@@ -5504,6 +5529,7 @@ tr.qm-hang-tam td{background:#fffbeb}
     return m ? (Number(m[3]) + '/' + Number(m[2])) : '';
   }
   function tenBaiGiangKh(b) {
+    if (b.kieu === 'CHUONG' && b.noiDung) return String(b.noiDung).trim();   // thiết kế K10 1 — lesson CHƯƠNG: tên chương (y `tenBaiGiang` khoa.html)
     var bg = b.baiGiang || {};
     var t = String(bg.tieuDe || '').trim();
     if (!t) return A.tenBai(b);
@@ -5511,9 +5537,12 @@ tr.qm-hang-tam td{background:#fffbeb}
     return (i >= 0 ? t.slice(i + 1).trim() : t) || A.tenBai(b);
   }
   function nhanRowKh(k) {
+    if (k.nhanBuoc) return k.nhanBuoc;   // thiết kế K10 5 — act thuộc bước của lesson CHƯƠNG (`tinhBai` gắn)
     if (k.loai === 'sach') return 'SÁCH' + (k.trang ? ' ' + A.chuAnToan(k.trang) : '');
     var ten = String(k.ten || '').trim();
-    var m = /^BT\s*0*([0-9]+)/i.exec(ten);
+    // 12/10/2026 — BẢN CHÉP luật `nhanRow` khoa.html: "BÀI TẬP 1" → BT1, "BT/BÀI TẬP BỔ SUNG" → BTBS.
+    if (/^(?:BT|B[ÀA]I\s*T[ẬA]P)\s*B[ỔO]\s*SUNG/i.test(ten)) return 'BTBS';
+    var m = /^(?:BT|B[ÀA]I\s*T[ẬA]P)\s*0*([0-9]+)/i.exec(ten);
     if (m) return 'BT' + m[1];
     if (/QUIZ/i.test(k.mau || '') || /TR[ẮA]C\s*NGHI[ỆE]M/i.test(ten)) return 'TNBG';
     return A.chuAnToan(ten) || 'BT';
@@ -5525,8 +5554,8 @@ tr.qm-hang-tam td{background:#fffbeb}
     return 'm-do';
   }
   // Một hàng CẢ LỚP: số em (trong sĩ số của bài) đã xong / sĩ số — y `hangLop()` khoa.html.
-  function hangKhoa(k, t) {
-    var nhan = nhanRowKh(k);
+  function hangKhoa(k, t, nhanEp) {
+    var nhan = nhanEp || nhanRowKh(k);   // nhanEp: thẻ lesson CHƯƠNG ép "BƯỚC n" (thiết kế K10 1)
     if (k.loai === 'sach' || !k.ma) {
       return '<span class="td-dong td-dong-sach"><span class="td-ten">' + nhan + '</span>' +
         '<span class="td-bar"></span><span class="td-so em-chua">—</span><span class="td-tich"></span></span>';
@@ -5546,6 +5575,96 @@ tr.qm-hang-tam td{background:#fffbeb}
       '<span class="td-bar"><i class="' + m + '" style="width:' + pt + '%"></i>' +
         avMocHtml(DIEM[a.ma], lopGocMoc) + '</span>' +
       '<span class="td-so' + (du ? ' m-la' : '') + '">' + a.xong + '/' + t.siSo + '</span>' +
+      '<span class="td-tich">' + (du ? '✓' : '') + '</span>' +
+    '</span>';
+  }
+  /* ⭐ thiết kế K10 1 (12/10/2026) — THẺ LESSON CHƯƠNG (khóa NỀN TẢNG, `b.kieu === 'CHUONG'`): mỗi BƯỚC trong `b.bt` một hàng
+     "BƯỚC n", số = em CẢ LỚP (sĩ số của bài, `t.acts[..].caLop`/`A.caLopCuaBai`) đã xong bước đó:
+       · bước `acts` (có mã bài giao) — điểm AWord, y hàng act cũ (`hangKhoa`).
+       · bước `sach`/`zalo` (tự đánh dấu) · `video` (xem đủ) — đọc trường `chuong` của `lessonVideoTienDo/<ma>__<bai>` từng em
+         (bai.html ghi, xem `chuongTuFs`/`btXongKhoa` bên đó — BẢN CHÉP luật xong: tay>0; video phủ ≥ tổng − 1.5 giây).
+     Đọc 1 tài liệu/em/bài, 6 lượt song song, nhớ trong `CHUONG_TD` tới khi đổi lớp (chonLop xoá). */
+  function nhanBuocTheoMaKh(b, ma) {   // act của lesson CHƯƠNG nằm ở bước nào ⇒ "BƯỚC n" (rỗng nếu không thấy)
+    var bt = b.bt || [];
+    for (var i = 0; i < bt.length; i++) if (bt[i].ma === ma) {
+      var m = /^\s*B[UƯ]ỚC\s*(\d{1,2})/i.exec(String(bt[i].tieuDe || ''));
+      return 'BƯỚC ' + (m ? m[1] : (i + 1));
+    }
+    return '';
+  }
+  var CHUONG_TD = {};   // b.id -> 'dang' | { <tên em>: {tay:{}, vid:{}} }
+  function soFsKh(v) { return v ? Number(v.integerValue != null ? v.integerValue : v.doubleValue) : NaN; }
+  function chuongTuFsKh(f) {
+    var r = { tay: {}, vid: {} };
+    try {
+      var c = f && f.mapValue && f.mapValue.fields; if (!c) return r;
+      var tay = (c.tay && c.tay.mapValue && c.tay.mapValue.fields) || {};
+      Object.keys(tay).forEach(function (id) { var x = soFsKh(tay[id]); if (x > 0) r.tay[id] = x; });
+      var vid = (c.vid && c.vid.mapValue && c.vid.mapValue.fields) || {};
+      Object.keys(vid).forEach(function (id) {
+        var m = (vid[id].mapValue && vid[id].mapValue.fields) || {};
+        var vs = (m.khuc && m.khuc.arrayValue && m.khuc.arrayValue.values) || [], ds = [];
+        for (var i = 0; i + 1 < vs.length; i += 2) ds.push([soFsKh(vs[i]), soFsKh(vs[i + 1])]);
+        r.vid[id] = { tong: soFsKh(m.tong) || 0, khuc: ds };
+      });
+    } catch (e) {}
+    return r;
+  }
+  function xongBuocTayKh(c, x) {
+    if (!c) return false;
+    if (x.loai === 'sach' || x.loai === 'zalo') return (c.tay[x.id] || 0) > 0;
+    var v = c.vid[x.id]; if (!v || !(v.tong > 0)) return false;
+    var g = [], phu = 0;   // gộp khúc chồng nhau rồi cộng phần nằm trong [0, tong]
+    v.khuc.filter(function (r) { return isFinite(r[0]) && isFinite(r[1]) && r[1] > r[0]; })
+      .sort(function (p, q) { return p[0] - q[0]; })
+      .forEach(function (r) { if (g.length && r[0] <= g[g.length - 1][1] + 0.05) g[g.length - 1][1] = Math.max(g[g.length - 1][1], r[1]); else g.push([r[0], r[1]]); });
+    g.forEach(function (r) { var a = Math.max(0, r[0]), b2 = Math.min(v.tong, r[1]); if (b2 > a) phu += b2 - a; });
+    return phu >= v.tong - 1.5;
+  }
+  function docChuongCuaBai(b, maLop) {
+    if (CHUONG_TD[b.id]) return;
+    CHUONG_TD[b.id] = 'dang';
+    var bang = CHUONG_TD, l = A.lopTheoMa(DL, maLop || LOP_CHON) || {};
+    var ds = (l.hocSinh || []).filter(function (h) { return String(h.ma || '').trim(); });
+    var ra = {}, i = 0;
+    function ke() {
+      if (i >= ds.length) return Promise.resolve();
+      var h = ds[i++], u = urlTienDoVideoDb(A.chuanMa(h.ma), b.id);
+      if (!u) return ke();
+      return fetch(u, { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) { ra[h.ten] = chuongTuFsKh(((j && j.fields) || {}).chuong); })
+        ['catch'](function () { ra[h.ten] = { tay: {}, vid: {} }; })
+        .then(ke);
+    }
+    var chay = [];
+    for (var k = 0; k < Math.min(6, ds.length); k++) chay.push(ke());
+    Promise.all(chay).then(function () {
+      if (CHUONG_TD !== bang || CHUONG_TD[b.id] !== 'dang') return;   // đã đổi lớp (chonLop thay bảng mới) ⇒ bỏ
+      CHUONG_TD[b.id] = ra;
+      veTat();
+    });
+  }
+  function hangBuocChuongKh(b, x, i, t) {
+    var m = /^\s*B[UƯ]ỚC\s*(\d{1,2})/i.exec(String(x.tieuDe || ''));
+    var nhan = 'BƯỚC ' + (m ? m[1] : (i + 1));
+    var tieu = A.chuAnToan(x.tieuDe || nhan);
+    if (x.ma && (x.loai === 'acts' || x.loai === 'act')) return hangKhoa({ ten: x.tieuDe || nhan, ma: x.ma, mau: x.mau }, t, nhan);
+    var caLop = A.caLopCuaBai(A.lopTheoMa(DL, LOP_CHON), b), siSo = caLop.length;
+    var td = CHUONG_TD[b.id];
+    if (!td || td === 'dang') {
+      docChuongCuaBai(b, LOP_CHON);
+      return '<span class="td-dong"><span class="td-ten" title="' + tieu + '">' + nhan + '</span>' +
+        '<span class="td-bar"><i style="width:0%"></i></span>' +
+        '<span class="td-so" style="color:var(--nhat)">…</span><span class="td-tich"></span></span>';
+    }
+    var xong = caLop.filter(function (ten) { return xongBuocTayKh(td[ten], x); }).length;
+    var pt = siSo ? Math.min(100, Math.round(xong / siSo * 100)) : 0;
+    var du = siSo > 0 && xong >= siSo;
+    return '<span class="td-dong">' +
+      '<span class="td-ten" title="' + tieu + '">' + nhan + '</span>' +
+      '<span class="td-bar"><i class="' + mauTheoPhanTramKh(pt, du) + '" style="width:' + pt + '%"></i></span>' +
+      '<span class="td-so' + (du ? ' m-la' : '') + '">' + xong + '/' + siSo + '</span>' +
       '<span class="td-tich">' + (du ? '✓' : '') + '</span>' +
     '</span>';
   }
@@ -5569,7 +5688,11 @@ tr.qm-hang-tam td{background:#fffbeb}
     var ruot = khoi.length
       ? khoi.map(function (k) { return hangKhoa(k, t); }).join('')
       : 'Bài giao trên giấy — chưa có bài tập online nào.';
-    return '<div class="the khoa-hoc' + lopThem + '" role="button" tabindex="0" data-id="' + id + '">' +
+    if (b.kieu === 'CHUONG' && (b.bt || []).length) {   // thiết kế K10 1 — một hàng mỗi BƯỚC (trước chỉ 2 hàng act, nhãn "TNBG")
+      khoi = b.bt;
+      ruot = b.bt.map(function (x, i) { return hangBuocChuongKh(b, x, i, t); }).join('');
+    }
+    return '<div class="the khoa-hoc' + lopThem + (b.kieu === 'CHUONG' ? ' chuong' : '') + '" role="button" tabindex="0" data-id="' + id + '">' +
       '<span class="the-in ' + lopNen + '">' +
         '<span class="the-body">' +
           '<span class="t-chu">' +
@@ -5580,7 +5703,7 @@ tr.qm-hang-tam td{background:#fffbeb}
           veHanCard(b, moc, st, t) +
         '</span>' +
         /* v1.130.0 — bỏ cột icon ⚙/⊕ (xem `veTheCard`); menu ⚙ nay ở đầu hộp quản lý bài. */
-        '<span class="the-diem n' + khoi.length + (khoi.length ? '' : ' chi-tay') + '">' +
+        '<span class="the-diem n' + khoi.length + (khoi.length ? '' : ' chi-tay') + (b.kieu === 'CHUONG' ? ' chuong' : '') + '">' +
           '<span class="diem-rows">' + ruot + '</span>' +
         '</span>' +
         '<span class="play">' + (ttThe === 'khoa'
@@ -8086,7 +8209,9 @@ tr.qm-hang-tam td{background:#fffbeb}
   // Nhãn NGẮN cho cột act (khóa học: "BT1. Tìm cụm từ…" → BT1 · quiz → TNBG; lớp chính: WORDS 1…).
   function hqNhanAct(a) {
     var ten = String(a.ten || '').trim();
-    var m = /^BT\s*0*([0-9]+)/i.exec(ten);
+    // 12/10/2026 — cùng luật `nhanRow` khoa.html: "BÀI TẬP 1" → BT1, "BT/BÀI TẬP BỔ SUNG" → BTBS.
+    if (/^(?:BT|B[ÀA]I\s*T[ẬA]P)\s*B[ỔO]\s*SUNG/i.test(ten)) return 'BTBS';
+    var m = /^(?:BT|B[ÀA]I\s*T[ẬA]P)\s*0*([0-9]+)/i.exec(ten);
     if (m) return 'BT' + m[1];
     if (/QUIZ/i.test(a.mau || '') && /TR[ẮA]C\s*NGHI[ỆE]M/i.test(ten)) return 'TNBG';
     return A.tenO(ten, true);
@@ -10977,6 +11102,7 @@ tr.qm-hang-tam td{background:#fffbeb}
 
   function chonLop(maLop, epMoi) {
     LOP_CHON = maLop;
+    CHUONG_TD = {};   // thiết kế K10 1 — đọc lại tiến độ bước lesson CHƯƠNG mỗi lần chọn lớp
     try { localStorage.setItem('mylesson_ql_lop', maLop); } catch (e) {}
     /* ⭐ v1.55.0 — ảnh đại diện mới nhất từ kho `lessonAvatar`, neo theo MÃ SỐ em.
        Gọi ở ĐÂY chứ không phải lúc nạp trang: dashboard đổi lớp liên tục, mỗi lớp
@@ -12170,7 +12296,8 @@ tr.qm-hang-tam td{background:#fffbeb}
       // phần thân còn lại (mặc định) vẫn mở hộp quản lý bài như cũ.
       var playBtn = e.target.closest('.the[data-id] .play');
       if (playBtn) {
-        window.open('lop.html?gv=1&lop=' + encodeURIComponent(LOP_CHON), '_blank');
+        // thiết kế K9 3 (12/10/2026) — lớp KHÓA mở trang khóa (khoa.html) như học sinh thấy; trước luôn mở lop.html ⇒ thẻ kiểu lớp thường.
+        window.open((laKhoaHoc() ? 'khoa.html' : 'lop.html') + '?gv=1&lop=' + encodeURIComponent(LOP_CHON), '_blank');
         return;
       }
       // ⭐ v1.88.0 — WORKSHEET không có điểm nào để mở bảng — vùng nhắc của nó
