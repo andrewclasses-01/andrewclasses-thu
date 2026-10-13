@@ -800,7 +800,7 @@ body.mo-menu .side.trai{transform:none}
 <script src="js/thay-vao.js?v=3"></script>
 <script src="js/app-check.js?v=4"></script>
 <script src="js/ve-doc.js?v=2"></script>   <!-- 02/10/2026 v1.226.0 vé đọc kho (khoá đọc người ngoài GĐ2) -->
-<script src="js/chung.js?v=89"></script>
+<script src="js/chung.js?v=90"></script>
 <script src="js/nw-phien.js?v=9"></script>
 <script src="js/gioi-thieu.js?v=3"></script>   <!-- v1.286.0 phim giới thiệu khóa mới (cần NWP của nw-phien.js) -->
 <script src="js/chat.js?v=36"></script>
@@ -1185,9 +1185,15 @@ function chuongTuFsC(f){
   } catch (e) {}
   return r;
 }
+function xnTuFsC(j){
+  var r = {}, m = (j && j.fields && j.fields.tay && j.fields.tay.mapValue && j.fields.tay.mapValue.fields) || {};
+  Object.keys(m).forEach(function(id){ var x = soFsC(m[id]); if (x > 0) r[id] = x; });
+  return r;
+}
 function xongBuocTayC(c, x){
   if (!c) return false;
-  if (x.loai === 'sach' || x.loai === 'zalo') return (c.tay[x.id] || 0) > 0;
+  if (x.loai === 'zalo') return ((c.xn || {})[x.id] || 0) > 0;   // 12/10/2026 — chỉ THẦY xác nhận (kho lessonXacNhan)
+  if (x.loai === 'sach') return (c.tay[x.id] || 0) > 0;
   if (x.loai !== 'video') return false;
   var v = c.vid[x.id]; if (!v || !(v.tong > 0)) return false;
   var g = [], phu = 0;
@@ -1210,12 +1216,12 @@ function docChuongFs(g){
     if (i >= ds.length) return Promise.resolve();
     var h = ds[i++];
     if (!db.projectId || !db.apiKey || !h.ma) return ke();
-    var u = 'https://firestore.googleapis.com/v1/projects/' + db.projectId + '/databases/(default)/documents/lessonVideoTienDo/' +
-      encodeURIComponent(h.ma + '__' + g.id) + '?key=' + encodeURIComponent(db.apiKey);
-    return fetch(u, { cache: 'no-store' })
-      .then(function(r){ return r.ok ? r.json() : null; })
-      .then(function(j){ ra[h.ten] = chuongTuFsC(((j && j.fields) || {}).chuong); })
-      ['catch'](function(){ ra[h.ten] = { tay: {}, vid: {} }; })
+    var goc = 'https://firestore.googleapis.com/v1/projects/' + db.projectId + '/databases/(default)/documents/';
+    var duoi = encodeURIComponent(h.ma + '__' + g.id) + '?key=' + encodeURIComponent(db.apiKey);
+    var doc = function(u){ return fetch(u, { cache: 'no-store' }).then(function(r){ return r.ok ? r.json() : null; })['catch'](function(){ return null; }); };
+    // 12/10/2026 — đọc kèm dấu THẦY xác nhận bước zalo (`lessonXacNhan`, chỉ thầy ghi) ⇒ `xn`
+    return Promise.all([doc(goc + 'lessonVideoTienDo/' + duoi), doc(goc + 'lessonXacNhan/' + duoi)])
+      .then(function(kq){ var c = chuongTuFsC(((kq[0] && kq[0].fields) || {}).chuong); c.xn = xnTuFsC(kq[1]); ra[h.ten] = c; })
       .then(ke);
   }
   var chay = [];
@@ -1260,7 +1266,7 @@ function veDiemChuong(b){
   (g.bt || []).forEach(function(x, i){
     var m = /^\s*B[UƯ]ỚC\s*(\d{1,2})/i.exec(String(x.tieuDe || ''));
     var nhan = 'B' + (m ? m[1] : (i + 1));
-    var xong = !!bx[x.id] || (!laBuocAct(x) && !!fs && xongBuocTayC(fs[TOI], x));   // K10 3 — máy chủ (đổi máy vẫn đúng)
+    var xong = (x.loai !== 'zalo' && !!bx[x.id]) || (!laBuocAct(x) && !!fs && xongBuocTayC(fs[TOI], x));   // K10 3 — máy chủ (đổi máy vẫn đúng); zalo chỉ tin dấu thầy
     if (!xong && x.ma && (x.loai === 'acts' || x.loai === 'act')) {
       var ds = DIEM[x.ma] || [], chuan = CHUAN[x.ma];
       xong = A.xongAct(ds, TOI, chuan);
@@ -1501,6 +1507,7 @@ function fsChuongPop(){
 }
 function xongTayPop(ten, k, fs){
   if (fs && xongBuocTayC(fs[ten], k.buoc)) return true;
+  if (k.buoc.loai === 'zalo') return false;   // 12/10/2026 — zalo chỉ tin dấu thầy (đã xét qua fs ở trên)
   if (A.khoaTen(ten) !== A.khoaTen(TOI)) return false;
   try { var tt = JSON.parse(((window.__thayVao || (EM && EM.xemNhu)) ? sessionStorage : localStorage).getItem('awc_khoa_buoc_' + POP.b.goc.id + '_' + MA_HS) || '{}') || {}; return !!(tt.bt || {})[k.buoc.id]; } catch (e) { return false; }
 }
@@ -1821,10 +1828,12 @@ A.napDuLieu().then(function(dl){
     /* 12/10/2026 — CHỈ thầy với danh tính THẦY (`?gv=1`) mới xem kiểu "xem lại". Xem như em / đăng nhập thay ⇒ đi đường của EM:
        đọc tiến độ phim THẬT của em trên máy chủ (đã xong ⇒ thẻ; đang dở ⇒ mở tiếp đúng màn), thao tác không ghi lên máy chủ. */
     if (EM.vaiTro === 'gv') {
-      /* v1.287.0 — thầy xem như em: phim TỰ MỞ một lần mỗi tab (có nút Đóng, không ghi gì) để thầy thấy đúng như em; sau đó chỉ có thẻ */
+      /* v1.287.0 — thầy: phim TỰ MỞ một lần (có nút Đóng, không ghi gì) để thầy thấy đúng như em; sau đó chỉ có thẻ.
+         12/10/2026 (thầy báo "đã xong mấy lần vẫn ra") — dấu "đã tự mở" trước nhớ theo TAB (sessionStorage) mà dashboard/app mở
+         trang khóa ở tab/khung MỚI mỗi lần ⇒ lần nào cũng như lần đầu. Nay nhớ theo MÁY (localStorage): mỗi khóa tự mở đúng 1 lần/máy. */
       GT_HIEN = true;
       var khoaTab = 'gtk_thay_' + LOP_DL, daMo = false;
-      try { daMo = !!sessionStorage.getItem(khoaTab); sessionStorage.setItem(khoaTab, '1'); } catch (e) {}
+      try { daMo = !!(localStorage.getItem(khoaTab) || sessionStorage.getItem(khoaTab)); localStorage.setItem(khoaTab, '1'); } catch (e) {}
       if (!daMo) GioiThieu.mo(GT_CTX, { lai: true, daXong: true });
     }
     else GioiThieu.docTrangThai(GT_CTX).then(function(st){

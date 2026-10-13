@@ -2323,6 +2323,24 @@ table.hq-tl.deu td, table.hq-tl.deu th{overflow:hidden}
 .bxh-dong .tg{font:700 calc(var(--f)*.86)/1 var(--font); color:var(--mo); font-variant-numeric:tabular-nums; text-align:center}
 .bxh-dong.chua .ten, .bxh-dong.gan-han .ten{color:#DC2626}
 .bxh-dong.chua .diem, .bxh-dong.chua .tg{color:#D3DCDA}
+/* ⭐ thiết kế K10 8 (12/10/2026, thầy chốt mẫu v43 A) — XẾP HẠNG: em ĐỦ ĐIỂM / ĐÃ XONG tên XANH LÁ (mọi dạng bài);
+   lesson CHƯƠNG thêm BẢNG HẸP cho bước không điểm (đọc sách · video mẫu · quay video): "Xong ✓" / "—", không hạng. */
+.bxh-dong.du .ten, .bd-dong.du .ten{color:#16A34A}
+.bxh.hep .bxh-dau{grid-template-columns:auto minmax(0,1fr) auto; padding:10px 10px 8px}
+.bxh.hep .bxh-dau .dem{grid-row:1}
+.bxh.hep .bxh-dau .ico{width:calc(var(--f)*1.25); height:calc(var(--f)*1.25); border-radius:6px; display:grid; place-items:center; color:#fff}
+.bxh.hep .bxh-dau .ico svg{width:68%; height:68%; fill:none; stroke:currentColor; stroke-width:2.2; stroke-linecap:round; stroke-linejoin:round}
+.bxh.hep .bxh-dau .phu{grid-column:1 / -1; font:700 calc(var(--f)*.66)/1.2 var(--font); color:var(--mo); letter-spacing:.04em; text-transform:uppercase; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.bxh-dong.tay{grid-template-columns:minmax(0,1fr) auto; padding:0 calc(var(--f)*.45) 0 calc(var(--f)*.6)}
+.bxh-dong.tay .xong{font:800 calc(var(--f)*.8)/1 var(--font); color:#16A34A; background:var(--la-nhat); padding:calc(var(--f)*.28) calc(var(--f)*.5); border-radius:99px; white-space:nowrap}
+.bxh-dong.tay.chua .xong{color:#D3DCDA; background:none}
+/* 12/10/2026 — nút THẦY TÍCH bước zalo (bảng XẾP HẠNG + pop-up kết quả) */
+.zalo-tich{font:800 11.5px/1 var(--font); padding:5px 9px; border-radius:99px; border:1.5px dashed #F2C4C4; background:#fff; color:#DC2626; cursor:pointer; white-space:nowrap; -webkit-user-select:none; user-select:none}
+.zalo-tich:hover{border-style:solid; border-color:#DC2626; background:#FEF2F2}
+.zalo-tich.co{border:1.5px solid transparent; background:var(--la-nhat); color:#16A34A}
+.zalo-tich.co:hover{border-color:#16A34A}
+.zalo-tich:disabled{opacity:.5; cursor:wait}
+.bxh-dong.tay .zalo-tich{font-size:calc(var(--f)*.8); padding:calc(var(--f)*.28) calc(var(--f)*.5)}
 .hq-xh-phai{--f:13px; --av:26px; min-width:0; min-height:0; border:1px solid var(--vien); border-radius:14px; background:var(--the); display:flex; flex-direction:column; overflow:hidden}
 .bd-dau{flex:none; display:flex; align-items:baseline; justify-content:center; gap:10px; padding:10px 14px 8px; border-bottom:1px solid var(--vien)}
 .bd-dau b{font:800 calc(var(--f)*.95)/1.2 var(--font); letter-spacing:.06em; text-transform:uppercase; white-space:nowrap}
@@ -4109,7 +4127,7 @@ tr.qm-hang-tam td{background:#fffbeb}
 <script src="js/thay-vao.js?v=3"></script>
 <script src="js/app-check.js?v=4"></script>
 <script src="js/ve-doc.js?v=2"></script>   <!-- 02/10/2026 v1.226.0 vé đọc kho (khoá đọc người ngoài GĐ2) -->
-<script src="js/chung.js?v=89"></script>
+<script src="js/chung.js?v=90"></script>
 <script src="js/chat.js?v=36"></script>
 <script src="js/nhac-tb.js?v=2"></script>   <!-- v1.224.0 thông báo khi bị @nhắc tên -->
 <script src="js/chat-ui.js?v=20"></script>
@@ -5615,9 +5633,55 @@ tr.qm-hang-tam td{background:#fffbeb}
     } catch (e) {}
     return r;
   }
+  function xnTuFsKh(j) {
+    var r = {}, m = (j && j.fields && j.fields.tay && j.fields.tay.mapValue && j.fields.tay.mapValue.fields) || {};
+    Object.keys(m).forEach(function (id) { var x = soFsKh(m[id]); if (x > 0) r[id] = x; });
+    return r;
+  }
+  /* ⭐ 12/10/2026 (thầy chốt) — THẦY TÍCH bước "gửi video lên nhóm Zalo" ngay trong bảng chi tiết (tab XẾP HẠNG hộp quản lý +
+     tab bước của pop-up kết quả). Ghi `lessonXacNhan/<mã em>__<id bài>` { ma, bai, lop, luc, tay: {<id bước>: mốc ms | 0 = gỡ} }
+     bằng setDoc merge (luật: chỉ laThay() ghi — tools/dang-luat-xac-nhan-zalo.js). Học sinh không tự tích được nữa. */
+  function nutTichZaloDb(b, x, ten, xong, maLop) {
+    return '<button type="button" class="zalo-tich' + (xong ? ' co' : '') + '" data-zalo-tich="' + A.chuAnToan(ten) + '" data-bai="' + A.chuAnToan(b.id) +
+      '" data-bt="' + A.chuAnToan(x.id) + '" data-lop="' + A.chuAnToan(maLop || '') + '" title="Bấm đúp để đổi ' + (xong ? 'thành Chưa nộp' : 'thành Đã nộp') + '">' +
+      (xong ? 'Đã nộp' : 'Chưa nộp') + '</button>';
+  }
+  function tichZaloDb(n) {
+    var bId = n.getAttribute('data-bai'), btId = n.getAttribute('data-bt'), ten = n.getAttribute('data-zalo-tich'), maLop = n.getAttribute('data-lop');
+    var td = CHUONG_TD[bId]; if (!td || td === 'dang' || n.disabled) return;
+    var c = td[ten] || (td[ten] = { tay: {}, vid: {} }); c.xn = c.xn || {};
+    var co = (c.xn[btId] || 0) > 0;
+    n.disabled = true;
+    if (chuaThay(n)) return;
+    var l = A.lopTheoMa(DL, maLop) || {}, h = (l.hocSinh || []).filter(function (x) { return x.ten === ten; })[0];
+    if (!h || !String(h.ma || '').trim()) { n.disabled = false; baoToast('Không tìm thấy mã học sinh của ' + ten + '.'); return; }
+    var ma = A.chuanMa(h.ma), moi = co ? 0 : A.gioNay(), tay = {}; tay[btId] = moi;
+    spDb().then(function (f) {
+      return f.fs.setDoc(f.fs.doc(f.db, 'lessonXacNhan', ma + '__' + bId), { ma: ma, bai: String(bId), lop: String(maLop || ''), luc: Date.now(), tay: tay }, { merge: true });
+    }).then(function () {
+      c.xn[btId] = moi;
+      veTat();
+      if (HQ.b && HQ.b.id === bId && HQ.tab === 'xh') hqVeLai();
+      if (POP_TAB.b && POP_TAB.b.id === bId && $('#popNen').classList.contains('mo')) { veTabsDb(); veRuotTabDb(); }
+      baoToast(ten + (co ? ': Chưa nộp' : ': Đã nộp ✓'));
+    })['catch'](function (e) {
+      n.disabled = false;
+      baoToast('Không lưu được: ' + ((e && (e.code || e.message)) || 'lỗi không rõ'));
+    });
+  }
+  // 12/10/2026 (thầy chốt) — nút "Chưa nộp" ⇄ "Đã nộp": BẤM ĐÚP mới đổi (bấm đơn không làm gì, tránh lỡ tay; khỏi hỏi lại).
+  // Bắt ở pha CAPTURE: nút nằm trong dòng có `dblclick` mở chi tiết em ⇒ chặn cả click lẫn dblclick lọt xuống dòng.
+  document.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('[data-zalo-tich]')) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+  document.addEventListener('dblclick', function (e) {
+    var n = e.target.closest && e.target.closest('[data-zalo-tich]'); if (!n) return;
+    e.stopPropagation(); e.preventDefault(); tichZaloDb(n);
+  }, true);
   function xongBuocTayKh(c, x) {
     if (!c) return false;
-    if (x.loai === 'sach' || x.loai === 'zalo') return (c.tay[x.id] || 0) > 0;
+    if (x.loai === 'zalo') return ((c.xn || {})[x.id] || 0) > 0;   // 12/10/2026 — chỉ THẦY xác nhận (kho lessonXacNhan, `tichZaloDb`)
+    if (x.loai === 'sach') return (c.tay[x.id] || 0) > 0;
     var v = c.vid[x.id]; if (!v || !(v.tong > 0)) return false;
     var g = [], phu = 0;   // gộp khúc chồng nhau rồi cộng phần nằm trong [0, tong]
     v.khuc.filter(function (r) { return isFinite(r[0]) && isFinite(r[1]) && r[1] > r[0]; })
@@ -5636,10 +5700,10 @@ tr.qm-hang-tam td{background:#fffbeb}
       if (i >= ds.length) return Promise.resolve();
       var h = ds[i++], u = urlTienDoVideoDb(A.chuanMa(h.ma), b.id);
       if (!u) return ke();
-      return fetch(u, { cache: 'no-store' })
-        .then(function (r) { return r.ok ? r.json() : null; })
-        .then(function (j) { ra[h.ten] = chuongTuFsKh(((j && j.fields) || {}).chuong); })
-        ['catch'](function () { ra[h.ten] = { tay: {}, vid: {} }; })
+      var doc = function (x) { return fetch(x, { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; })['catch'](function () { return null; }); };
+      // 12/10/2026 — đọc kèm dấu THẦY xác nhận bước zalo (`lessonXacNhan`, cùng id `<mã>__<bài>`) ⇒ `xn`
+      return Promise.all([doc(u), doc(u.replace('/lessonVideoTienDo/', '/lessonXacNhan/'))])
+        .then(function (kq) { var c = chuongTuFsKh(((kq[0] && kq[0].fields) || {}).chuong); c.xn = xnTuFsKh(kq[1]); ra[h.ten] = c; })
         .then(ke);
     }
     var chay = [];
@@ -5649,6 +5713,7 @@ tr.qm-hang-tam td{background:#fffbeb}
       CHUONG_TD[b.id] = ra;
       veTat();
       if (POP_TAB.b && POP_TAB.b.id === b.id && $('#popNen').classList.contains('mo')) { veTabsDb(); veRuotTabDb(); }   // K10 7
+      if (HQ.b && HQ.b.id === b.id && HQ.tab === 'xh') hqVeLai();   // K10 8 — tab XẾP HẠNG đang mở bài này
     });
   }
   function hangBuocChuongKh(b, x, i, t) {
@@ -6561,7 +6626,7 @@ tr.qm-hang-tam td{background:#fffbeb}
       return '<span class="xh-dong tay ' + (e.mien ? 'mien' : (e.xong ? 'du' : 'chua')) + '"' + (e.mien ? ' title="Không tính ở bài này"' : '') + '>' +
         '<span class="xh-hang">' + (e.xong && !e.mien ? '✓' : '–') + '</span>' +
         '<span class="xh-ten">' + A.chuAnToan(e.ten) + '</span>' +
-        '<span class="xh-diem">' + (e.xong ? 'Đã xong' : '—') + '</span></span>';
+        '<span class="xh-diem">' + (a.buoc.loai === 'zalo' ? nutTichZaloDb(b, a.buoc, e.ten, e.xong, LOP_CHON) : (e.xong ? 'Đã xong' : '—')) + '</span></span>';
     }).join('') + '</div>';
   }
   function veTabsDb() {
@@ -8693,9 +8758,30 @@ tr.qm-hang-tam td{background:#fffbeb}
       '<span class="dem' + (n && xong === n ? ' du' : '') + '">' + (dangDoc ? '…' : xong + '/' + n + ' đã xong') + '</span></div><div class="bxh-ds">' +
       dong.map(function (d, k) {
         var hang = d.tot ? (k < 3 ? '<span class="hang hc h' + (k + 1) + '">' + (k + 1) + '</span>' : '<span class="hang">' + (k + 1) + '</span>') : '<span class="hang">–</span>';
-        return '<div class="bxh-dong' + (d.tot ? (ganHan && !d.full ? ' gan-han' : '') : ' chua') + '" data-hq-em="' + A.chuAnToan(d.h.ten) + '" title="Đúp để xem chi tiết">' + hang + '<span class="ten"' + tenGonTitle(d.h.ten) + '>' + tenGon(d.h.ten) + '</span>' +
+        return '<div class="bxh-dong' + (d.full ? ' du' : d.tot ? (ganHan ? ' gan-han' : '') : ' chua') + '" data-hq-em="' + A.chuAnToan(d.h.ten) + '" title="Đúp để xem chi tiết">' + hang + '<span class="ten"' + tenGonTitle(d.h.ten) + '>' + tenGon(d.h.ten) + '</span>' +
           '<span class="diem' + (d.full ? ' full' : '') + '">' + (d.tot ? d.tot.diem + (d.tot.mau ? '<small>/' + d.tot.mau + '</small>' : '') : '—') + '</span>' +
           '<span class="tg">' + (d.tot && d.tot.giay && d.tot.giay < 1e9 ? mmss(d.tot.giay) : '—') + '</span></div>';
+      }).join('') + '</div></div>';
+  }
+  // ⭐ thiết kế K10 8 — BẢNG HẸP cho bước không điểm của lesson CHƯƠNG (`a` = mục `tay` của `dsTabDb`). Đọc `CHUONG_TD` (cùng nguồn
+  //   hàng BƯỚC trên thẻ + tab pop-up K10 7). Em đã xong lên đầu (giữ thứ tự sĩ số), tên xanh + "Xong ✓"; chưa xong tên đỏ + "—".
+  var HQ_TAY_IC = {
+    sach: ['#0E96A8', '<path d="M2 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H2z"/><path d="M22 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8z"/>'],
+    video: ['#DB2777', '<path d="M7 4l13 8-13 8z"/>'],
+    zalo: ['#E0A400', '<rect x="2" y="6" width="14" height="12" rx="2"/><path d="M16 10l6-3v10l-6-3"/>']
+  };
+  function hqBxhTay(a, hs, td) {
+    var dangDoc = !td || td === 'dang', ic = HQ_TAY_IC[a.buoc.loai] || HQ_TAY_IC.sach;
+    var ds = hs.map(function (h, i) { return { h: h, i: i, x: !dangDoc && xongBuocTayKh(td[h.ten], a.buoc) }; });
+    ds.sort(function (p, q) { return (q.x - p.x) || (p.i - q.i); });
+    var n = ds.filter(function (e) { return e.x; }).length;
+    var ten = String(a.ten || '').replace(/^\s*B[UƯ]ỚC\s*\d{1,2}\s*[·:.\-–]?\s*/i, '');
+    return '<div class="bxh hep" style="--n:' + ds.length + '"><div class="bxh-dau"><span class="ico" style="background:' + ic[0] + '"><svg viewBox="0 0 24 24">' + ic[1] + '</svg></span>' +
+      '<b>' + A.chuAnToan(a.nhanBuoc) + '</b><span class="dem' + (!dangDoc && n === ds.length ? ' du' : '') + '">' + (dangDoc ? '…' : n + '/' + ds.length) + '</span>' +
+      '<span class="phu" title="' + A.chuAnToan(a.ten) + '">' + A.chuAnToan(ten) + '</span></div><div class="bxh-ds">' +
+      ds.map(function (e) {
+        return '<div class="bxh-dong tay ' + (e.x ? 'du' : 'chua') + '" data-hq-em="' + A.chuAnToan(e.h.ten) + '" title="Đúp để xem chi tiết"><span class="ten"' + tenGonTitle(e.h.ten) + '>' + tenGon(e.h.ten) + '</span>' +
+          (a.buoc.loai === 'zalo' ? nutTichZaloDb(HQ.b, a.buoc, e.h.ten, e.x, HQ.t.maLop) : '<span class="xong">' + (e.x ? 'Xong ✓' : '—') + '</span>') + '</div>';
       }).join('') + '</div></div>';
   }
   var HQ_GAN_HAN_MS = 5 * 3600 * 1000;
@@ -8719,20 +8805,46 @@ tr.qm-hang-tam td{background:#fffbeb}
     var lopGoc = hqLopGoc(t), slug = avSlugLop(lopGoc);
     var soA = pv.acts.length, cot = soA <= 3 ? soA : Math.ceil(soA / 2);
     var trai = soA ? pv.acts.map(function (a) { return hqBxhAct(a, hs, t.acts.indexOf(a)); }).join('') : '<div class="bm-em-trong">Phạm vi này không có game AWord.</div>';
-    var rows = hs.map(function (h) { return { h: h, tong: hqTongEm(h.ten, pv) }; });
+    // ⭐ thiết kế K10 8 (mẫu v43 A) — lesson CHƯƠNG: đủ MỌI BƯỚC theo thứ tự, một hàng; bước không điểm = bảng hẹp (⅔ bề ngang).
+    var b = HQ.b, laCh = b.kieu === 'CHUONG' && (b.bt || []).length, td = laCh ? CHUONG_TD[b.id] : null, cotCss = '', soTay = 0;
+    if (laCh) {
+      var cacBuoc = dsTabDb(b, t).filter(function (a) { return a.tay ? !/^acts?$/.test(a.buoc.loai) : pv.acts.indexOf(a) >= 0; });
+      soTay = cacBuoc.filter(function (a) { return a.tay; }).length;
+      if (soTay) {
+        if (!td || td === 'dang') docChuongCuaBai(b, t.maLop);
+        trai = cacBuoc.map(function (a) { return a.tay ? hqBxhTay(a, hs, td) : hqBxhAct(a, hs, t.acts.indexOf(a)); }).join('');
+        cotCss = cacBuoc.map(function (a) { return a.tay ? 'minmax(0,.66fr)' : 'minmax(0,1fr)'; }).join(' ');
+      }
+    }
+    // em ĐÃ XONG ĐỦ mọi mục của phạm vi (act đủ điểm, trừ act em được bỏ qua riêng; CHƯƠNG thêm mọi bước không điểm) ⇒ tên xanh ở cột tổng thời gian
+    var tdDoc = soTay && td && td !== 'dang';
+    function xongHet(ten) {
+      var k = A.khoaTen(ten), co = 0, thieu = pv.acts.some(function (a) {
+        if (hqKtMuc(A.khoaMucBq('act', a.ma))[k]) return false;
+        co++; return !coTrongDiem(DIEM[a.ma] || [], ten, a.ma);
+      });
+      if (!thieu && soTay) {
+        if (!tdDoc) return false;
+        thieu = dsTabDb(b, t).some(function (a) { return a.tay && !/^acts?$/.test(a.buoc.loai) && (co++, !xongBuocTayKh(td[ten], a.buoc)); });
+      }
+      return co > 0 && !thieu;
+    }
+    var rows = hs.map(function (h) { return { h: h, tong: hqTongEm(h.ten, pv), du: xongHet(h.ten) }; });
     rows.sort(function (x, y) { return (y.tong - x.tong) || x.h.ten.localeCompare(y.h.ten, 'vi'); });
     var max = Math.max(60, rows[0].tong);
     var buoc = max > 36000 ? 7200 : max > 14400 ? 3600 : 1800, dinh = Math.ceil(max / buoc) * buoc;
     var phai = '<div class="bd-dau"><b>Tổng thời gian luyện tập</b></div>' +
       '<div class="bd-than"><div class="bd-luoi" id="hqXhLuoi"></div><div class="bd-ds" style="--n:' + rows.length + '">' +
       rows.map(function (r, k) {
-        return '<div class="bd-dong' + (r.tong ? '' : ' chua') + '" data-hq-em="' + A.chuAnToan(r.h.ten) + '" title="Đúp để xem chi tiết"><span class="stt">' + (k + 1) + '</span>' + veEmAvDb(r.h.ten, slug, lopGoc) +
+        return '<div class="bd-dong' + (r.du ? ' du' : r.tong ? '' : ' chua') + '" data-hq-em="' + A.chuAnToan(r.h.ten) + '" title="Đúp để xem chi tiết"><span class="stt">' + (k + 1) + '</span>' + veEmAvDb(r.h.ten, slug, lopGoc) +
           '<span class="ten"' + tenGonTitle(r.h.ten) + '>' + tenGon(r.h.ten) + '</span><span class="bd-ray">' + (r.tong ? '<span class="bd-cot" style="width:' + (r.tong / dinh * 100).toFixed(2) + '%;animation-delay:' + (k * 25) + 'ms"></span>' : '') + '</span>' +
           '<span class="gio">' + (r.tong ? hqChuGio(r.tong) : '—') + '</span></div>';
       }).join('') + '</div><div class="bd-truc" id="hqXhTruc"></div></div>';   // v1.149.0 — trục nằm trong dải đáy `.bd-than`
     var loi = HQ.actLoi ? '<div class="hq-loi">' + A.chuAnToan(HQ.actLoi) + '</div>' : '';
     // v1.148.0 (mẫu v36) — MỘT act ⇒ hai nửa bằng nhau: nửa bảng act, nửa tổng thời gian (danh sách vẫn MỘT cột).
-    return loi + '<div class="hq-xh' + (HQ.hieu ? ' anim' : '') + '" id="hqXh"' + (soA === 1 ? ' style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"' : '') + '><div class="hq-xh-trai" style="grid-template-columns:repeat(' + Math.max(1, cot) + ',minmax(0,1fr))">' + trai + '</div>' +
+    var cotTrai = 'repeat(' + Math.max(1, cot) + ',minmax(0,1fr))', khung = soA === 1 ? ' style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)"' : '';
+    if (cotCss) { cotTrai = cotCss; khung = ' style="grid-template-columns:minmax(0,' + Math.max(1.5, soA * 0.7 + soTay * 0.45).toFixed(2) + 'fr) minmax(0,1fr)"'; }
+    return loi + '<div class="hq-xh' + (HQ.hieu ? ' anim' : '') + '" id="hqXh"' + khung + '><div class="hq-xh-trai" style="grid-template-columns:' + cotTrai + '">' + trai + '</div>' +
       '<div class="hq-xh-phai" id="hqXhPhai" data-dinh="' + dinh + '" data-buoc="' + buoc + '">' + phai + '</div></div>';
   }
 
@@ -15851,9 +15963,9 @@ tr.qm-hang-tam td{background:#fffbeb}
 <script src="js/tn-khung.js?v=1"></script>   <!-- v1.280.0 khung Tin nhắn giữ sống (nạp sẵn khi trang rảnh) -->
 <script src="js/nw-thanh.js?v=32"></script>
 <script src="js/sao-dash.js?v=3"></script>   <!-- 10/10/2026 hộp Sao học sinh (ví sao + cộng/trừ + lý do nhanh) -->
-<script src="js/ktdv-bc.js?v=9"></script>   <!-- 03/10/2026 bản báo cáo phụ huynh KT ĐẦU VÀO (bản chép ở repo kiemtra) -->
+<script src="js/ktdv-bc.js?v=10"></script>   <!-- 03/10/2026 bản báo cáo phụ huynh KT ĐẦU VÀO (bản chép ở repo kiemtra) -->
 <script src="js/cat-anh.js?v=2"></script>   <!-- 05/10/2026 v1.251.0 bộ cắt ảnh đại diện dùng chung (zoom + khung đầu-vai) · v1.252.0 khung sửa + bộ sưu tập -->
-<script src="js/ktdv-ql.js?v=19"></script>
+<script src="js/ktdv-ql.js?v=20"></script>
 <script src="js/nhap-so.js?v=1"></script>   <!-- 07/10/2026 cuộn chuột không đổi số + Enter nhận ô -->   <!-- 02/10/2026 KT ĐẦU VÀO (Kho bài) -->
 </body>
 </html>
