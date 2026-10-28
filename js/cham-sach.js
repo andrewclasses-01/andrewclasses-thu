@@ -196,11 +196,18 @@
     var e = emHien(), tk = tongKet(e), coSai = tk.sai.length + tk.saiTay > 0;
     var lyDo = !S.dapAnXong ? 'Đang tải đáp án…' : (tk.thieu.length ? '🔒 Còn ' + tk.thieu.length + ' câu chưa có dấu ✓/✕: câu ' + tk.thieu.slice(0, 8).map(tenSo).join(', ') + (tk.thieu.length > 8 ? '…' : '') : '');
     var dat = $('#csDat'), loi = $('#csChupLoi');
-    dat.disabled = !!lyDo || coSai;
-    dat.title = lyDo || (coSai ? '🔒 Còn dấu ✕ sai — dùng CHỤP LỖI' : 'Chụp ảnh ĐẠT + ghi ĐẠT cả bài');
-    loi.disabled = !!lyDo || !coSai;
-    loi.title = lyDo || (!coSai ? '🔒 Mọi câu đều ✓ đúng — dùng ĐẠT' : 'Chụp từng trang lỗi / trả lại trang');
-    $('#csKhoa').textContent = lyDo || (coSai ? 'Sai ' + (tk.sai.length + tk.saiTay) + ' chỗ ⇒ CHỤP LỖI' : '✓ Đúng hết ⇒ ĐẠT');
+    // ⭐ v1.435.0 (thầy chốt 28/10) — chưa chấm ĐẠT: nút chỉ chữ "ĐẠT"; thầy đã bấm ĐẠT (ghi máy chủ) ⇒ "ĐẠT ✓" + CHỤP LỖI mờ.
+    // ⭐ v1.436.0 (thầy chốt 28/10) — bấm ĐẠT là ghi ĐẠT ngay (không pop-up); đã ĐẠT ⇒ nút trái thành CHỤP ẢNH (pop-up chụp ảnh ĐẠT),
+    //   bấm lại ĐẠT ⇒ hỏi BỎ ĐẠT. Chưa ĐẠT / có lỗi ⇒ nút trái là CHỤP LỖI như cũ.
+    var daDat = !!e && ttEm(e).lop === 'xong', dang = !!S.dangGhiDat;
+    dat.className = 'cs-nut dat' + (daDat ? '' : ' chua');
+    dat.innerHTML = dang ? 'Đang ghi…' : 'ĐẠT' + (daDat ? ico('dat', 16, 2.2).replace('class="cs-ico"', 'class="cs-ico cs-tich"') : '');
+    dat.disabled = dang || (!daDat && (!!lyDo || coSai));
+    dat.title = daDat ? 'Đã ĐẠT — bấm lại để BỎ ĐẠT' : lyDo || (coSai ? '🔒 Còn dấu ✕ sai — dùng CHỤP LỖI' : 'Bấm để ghi ĐẠT cả bài');
+    loi.innerHTML = ico('chup', 16, 2.2) + (daDat ? 'CHỤP ẢNH' : 'CHỤP LỖI');
+    loi.disabled = dang || (!daDat && (!!lyDo || !coSai));
+    loi.title = daDat ? 'Chụp ảnh ĐẠT (ảnh ghép mọi trang) để gửi Zalo' : lyDo || (!coSai ? '🔒 Mọi câu đều ✓ đúng — dùng ĐẠT' : 'Chụp từng trang lỗi / trả lại trang');
+    $('#csKhoa').textContent = daDat ? '✓ Thầy đã chấm ĐẠT' : lyDo || (coSai ? 'Sai ' + (tk.sai.length + tk.saiTay) + ' chỗ ⇒ CHỤP LỖI' : '✓ Đúng hết ⇒ bấm ĐẠT');
   }
   // Trạng thái một trang (theo dấu đang có): thieu | chan | tra | dung | vang
   function ttTrang(e, p) {
@@ -343,6 +350,9 @@
   var CSS =
     '#csNen{position:fixed;inset:0;z-index:9000;background:rgba(14,24,28,.62);display:grid;place-items:center;padding:14px;font-family:' + FONT + ';color:#16232A}' +
     '#csNen[hidden]{display:none}html.cs-mo{overflow:hidden}#csNen button{font-family:inherit;cursor:pointer}' +
+    // v1.434.0 — nhúng trong khung (tab BÀI TRONG SÁCH): bỏ nền phủ + nút đóng, hộp lấp đầy khung
+    '#csNen.nhung{position:relative;inset:auto;z-index:auto;background:none;padding:0;display:flex;flex:1;min-width:0;min-height:0}#csNen.nhung[hidden]{display:none}' +
+    '#csNen.nhung .cs-hop{width:100%;height:100%;box-shadow:none;border-radius:14px}#csNen.nhung .cs-dong{display:none}' +
     '.cs-hop{width:min(1560px,100%);height:min(960px,100%);background:#EEF3F2;border-radius:20px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.45)}' +
     '.cs-dau{display:flex;align-items:center;gap:12px;padding:11px 16px;background:#0E7C6E;color:#fff}.cs-dau b{font-size:14px;font-weight:900;letter-spacing:.04em}' +
     '.cs-dau span{font-size:11.5px;font-weight:700;opacity:.85}.cs-dong{margin-left:auto;border:0;background:rgba(255,255,255,.18);color:#fff;width:34px;height:34px;border-radius:10px;font-size:15px;font-weight:900}' +
@@ -351,7 +361,8 @@
     '.cs-cot h3{margin:0;padding:13px 15px 9px;font-size:12px;font-weight:900;letter-spacing:.06em}.cs-cot h3 small{display:block;font-size:10.5px;font-weight:600;color:#5F7370;letter-spacing:0;margin-top:3px}' +
     '.cs-ds{overflow:auto;padding-bottom:10px}.cs-em{display:flex;align-items:center;gap:9px;margin:0 8px;padding:8px 9px;border-radius:12px;font-size:12px;font-weight:700;cursor:pointer}' +
     '.cs-em:hover{background:#F4F8F7}.cs-em.chon{background:#E3F1EE;outline:1.5px solid #0E7C6E}' +
-    '.cs-av{width:30px;height:30px;border-radius:50%;background:#94A3B8;display:grid;place-items:center;font-size:10.5px;font-weight:900;color:#fff;flex:none}' +
+    '.cs-av{width:34px;height:34px;border-radius:50%;background:#94A3B8;display:grid;place-items:center;font-size:10.5px;font-weight:900;color:#fff;flex:none;position:relative;overflow:hidden}' +
+    '.cs-av img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}.cs-em.xong .cs-ten{color:#15803D}' +   // v1.435.0 ảnh em + tên ĐÃ ĐẠT xanh lá
     '.cs-tt{margin-left:auto;font-size:9px;font-weight:800;padding:3px 7px;border-radius:999px;white-space:nowrap}' +
     '.cs-tt.cho{background:#FEF3C7;color:#B45309}.cs-tt.xong{background:#DCFCE7;color:#15803D}.cs-tt.chua{background:#F1F5F9;color:#94A3B8}.cs-tt.tra{background:#FEE2E2;color:#B91C1C}' +
     '.cs-giua{background:#1E2B30;border-color:#1E2B30}.cs-thanh{display:flex;align-items:center;gap:5px;padding:9px 11px;background:#26363C;flex-wrap:wrap}' +
@@ -372,6 +383,10 @@
     '.cs-nut{border:0;border-radius:11px;padding:11px 18px;font-size:12px;font-weight:900;letter-spacing:.05em}.cs-nut:disabled{background:#64748B!important;color:#E2E8F0!important;box-shadow:none!important;opacity:.45;cursor:not-allowed}' +
     '.cs-luu{font-size:10.5px;font-weight:800;color:#9FE3D6}.cs-luu.dang{color:#FCD34D}.cs-luu.loi{color:#FCA5A5}.cs-khoa{font-size:10.5px;font-weight:800;color:#FCD34D;max-width:260px}' +
     '.cs-nut.dat{background:#16A34A;color:#fff}.cs-nut.loi{background:#F2A93B;color:#3B2A07}' +
+    // v1.436.0 (thầy chốt 28/10) — ĐẠT chưa tích = nền TRẮNG chữ đen; đã tích = xanh + ✓ bên phải. Pop-up hỏi bỏ ĐẠT.
+    '.cs-nut.dat.chua{background:#fff;color:#16232A;box-shadow:inset 0 0 0 1.5px #CBD5D1}.cs-nut.dat.chua:disabled{background:#fff!important;color:#16232A!important;box-shadow:inset 0 0 0 1.5px #CBD5D1!important;opacity:.45}.cs-nut.dat .cs-tich{margin-left:1px}' +
+    '.cs-hoi{background:#fff;border-radius:18px;padding:22px 24px;width:min(420px,100%);box-shadow:0 20px 60px rgba(0,0,0,.4)}.cs-hoi b{display:block;font-size:15px;font-weight:900;margin-bottom:8px}' +
+    '.cs-hoi p{margin:0 0 18px;font-size:12.5px;font-weight:600;color:#5F7370;line-height:1.5}.cs-hoi .cs-hang{display:flex;gap:10px;justify-content:flex-end}.cs-nut.bo{background:#DC2626;color:#fff}' +
     '.cs-ai-dau{display:flex;align-items:center;gap:8px;padding:0 15px 9px;font-size:11px;color:#5F7370;font-weight:700}.cs-ai-dau b{margin-left:auto;font-size:20px;font-weight:900;color:#16232A}' +
     '.cs-bang{overflow:auto;padding:0 10px 10px;flex:1;min-height:0}' +
     '.cs-nhom{display:flex;align-items:center;gap:8px;margin:10px 0 4px;padding:7px 10px;border-radius:10px;font-size:10.5px;font-weight:900;letter-spacing:.05em;color:#fff;cursor:pointer}' +
@@ -463,14 +478,14 @@
         '<div class="cs-vung" id="csVung"><span class="cs-canh" id="csCanh" hidden></span><div class="cs-ve" id="csVe"><canvas id="csCv"></canvas><canvas id="csCvTren"></canvas></div>' +
           '<div class="cs-trong" id="csTrong" hidden>Em chưa nộp trang này.</div></div>' +
         '<div class="cs-cu" id="csCu"></div>' +
-        '<div class="cs-day"><span class="cs-lich" id="csLich"></span><span class="cs-luu" id="csLuu"></span><span class="cs-khoa" id="csKhoa"></span><button class="cs-nut loi" id="csChupLoi">' + ico('chup', 16, 2.2) + 'CHỤP LỖI</button><button class="cs-nut dat" id="csDat">' + ico('dat', 16, 2.2) + 'ĐẠT</button></div></div>' +
+        '<div class="cs-day"><span class="cs-lich" id="csLich"></span><span class="cs-luu" id="csLuu"></span><span class="cs-khoa" id="csKhoa"></span><button class="cs-nut loi" id="csChupLoi">' + ico('chup', 16, 2.2) + 'CHỤP LỖI</button><button class="cs-nut dat chua" id="csDat">ĐẠT</button></div></div>' +
       '<div class="cs-cot cs-ai"><h3>CHẤM THAM KHẢO (AI)<small>Chỉ thầy thấy. Bấm một dòng ⇒ ảnh cuộn tới dấu câu đó.</small></h3>' +
         '<div class="cs-ai-dau"><span id="csAiTrang"></span><b id="csTong"></b></div><div class="cs-bang" id="csBang"></div>' +
         '<div class="cs-nhan"><label>LỜI NHẮN GỬI EM (SOẠN SẴN — SỬA ĐƯỢC)</label><textarea id="csNhan"></textarea>' +
         '<div class="cs-hang"><button id="csChepNhan">' + ico('chep', 15) + 'Chép lời nhắn</button></div></div></div>' +
       '</div></div><div id="csPop" hidden></div><div id="csToast"></div>';
     document.body.appendChild(n);
-    n.addEventListener('click', function (e) { if (e.target === n || e.target.closest('.cs-dong')) dong(); });
+    n.addEventListener('click', function (e) { if ((e.target === n && !nhung()) || e.target.closest('.cs-dong')) dong(); });
     // ⛔ tắt menu chuột phải của trình duyệt trong pop-up (trừ ô gõ chữ — vẫn cần dán/chép)
     n.addEventListener('contextmenu', function (e) { if (!/TEXTAREA|INPUT/.test(e.target.tagName)) e.preventDefault(); });
     document.addEventListener('pointerdown', function (e) { if (!e.target.closest('.cs-menu,.cs-co,#csCaiDat')) dongNoi(); }, true);   // nút ⚙ tự bật/tắt pop-up của nó
@@ -490,7 +505,7 @@
         if ($('.cs-menu') || $('.cs-co')) dongNoi();
         else if (S.keDau) { S.keDau = null; veTren(); }
         else if (!$('#csPop').hidden) dongPop();
-        else dong();
+        else if (!nhung()) dong();   // v1.434.0 — nhúng trong tab: Esc ngoài cùng để dashboard đóng hộp chi tiết
       }
     });
     n.querySelectorAll('[data-cu]').forEach(function (b) {
@@ -501,13 +516,21 @@
     $('#csLui').onclick = hoanTac;
     $('#csCaiDat').onclick = function (e) { e.stopPropagation(); if ($('.cs-caidat')) { dongNoi(); return; } moCaiDat($('#csCaiDat')); };
     $('#csXoa').onclick = function () { var o = suaHien(); if (!o.net.length) return; ghiLich(o); o.net = []; veCv(); };
-    $('#csChupLoi').onclick = moChupLoi;
-    $('#csDat').onclick = moDat;
+    $('#csChupLoi').onclick = function () { if (ttEm(emHien()).lop === 'xong') moDat(); else moChupLoi(); };   // v1.436.0
+    $('#csDat').onclick = bamDat;
     $('#csChepNhan').onclick = function () { navigator.clipboard.writeText($('#csNhan').value).then(function () { toast('✓ Đã chép lời nhắn'); }, function () { toast('Trình duyệt chặn clipboard'); }); };
     ganVe($('#csCv'));
   }
   function chonCu(cu) { S.cu = cu; S.keDau = null; document.querySelectorAll('#csNen [data-cu]').forEach(function (x) { x.classList.toggle('on', x.dataset.cu === cu); }); veTren(); }
-  function dong() { luuHet(); var n = $('#csNen'); if (n) n.hidden = true; dongNoi(); document.documentElement.classList.remove('cs-mo'); if (S && S.onDong) S.onDong(); }
+  function dong() {
+    luuHet(); var n = $('#csNen');
+    if (n) { n.hidden = true; if (n.classList.contains('nhung')) { n.classList.remove('nhung'); document.body.appendChild(n); } }   // v1.434.0 — nhúng xong trả về body
+    dongNoi(); document.documentElement.classList.remove('cs-mo'); if (S && S.onDong) S.onDong();
+  }
+  // v1.434.0 — đang NHÚNG trong khung trang khác (tab BÀI TRONG SÁCH của dashboard) và đang hiện
+  function nhung() { var n = $('#csNen'); return !!(n && !n.hidden && n.classList.contains('nhung')); }
+  // v1.434.0 — có lớp nổi riêng của trang chấm (menu, thanh cỡ, đang kẻ, pop-up chụp) ⇒ Esc thuộc về trang chấm
+  function coLop() { var n = $('#csNen'); return !!(n && !n.hidden && ($('.cs-menu') || $('.cs-co') || (S && S.keDau) || !$('#csPop').hidden)); }
   function dongNoi() { document.querySelectorAll('.cs-menu,.cs-co').forEach(function (x) { x.remove(); }); }
   function datViTri(el, x, y) {
     document.body.appendChild(el);
@@ -783,9 +806,17 @@
   }
 
   // ───────── vẽ khung ─────────
+  var THU_NHOM = { cho: 0, tra: 1, chua: 2, xong: 3 };
   function veDs() {
     $('#csDs').innerHTML = '<h3>' + chu(S.tieuDe) + '<small>' + S.em.length + ' em · ' + S.em.filter(function (e) { return Object.keys((e.doc || {}).trang || {}).length; }).length + ' đã nộp</small></h3>' +
-      S.em.map(function (e, i) { var t = ttEm(e); return '<div class="cs-em' + (i === S.i ? ' chon' : '') + '" data-i="' + i + '"><span class="cs-av">' + chu(String(e.ten).trim().slice(0, 2).toUpperCase()) + '</span>' + chu(e.ten) + '<span class="cs-tt ' + t.lop + '">' + chu(t.chu) + '</span></div>'; }).join('');
+      // ⭐ v1.435.0 (thầy chốt 28/10) — xếp nhóm: CHỜ CHẤM → ĐÃ TRẢ LẠI (chưa nộp bổ sung) → CHƯA NỘP → ĐÃ ĐẠT (cuối, tên xanh lá); trong nhóm giữ thứ tự sĩ số.
+      S.em.map(function (e, i) { return { e: e, i: i, t: ttEm(e) }; })
+        .sort(function (a, b) { return ((THU_NHOM[a.t.lop] || 0) - (THU_NHOM[b.t.lop] || 0)) || (a.i - b.i); })
+        .map(function (o) {
+          var e = o.e, t = o.t;
+          return '<div class="cs-em ' + t.lop + (o.i === S.i ? ' chon' : '') + '" data-i="' + o.i + '"><span class="cs-av">' + chu(String(e.ten).trim().slice(0, 2).toUpperCase()) +
+            (e.av ? '<img alt="" src="' + chu(e.av) + '" onerror="this.remove()">' : '') + '</span><span class="cs-ten">' + chu(e.ten) + '</span><span class="cs-tt ' + t.lop + '">' + chu(t.chu) + '</span></div>';
+        }).join('');
     $('#csDs').querySelectorAll('.cs-em').forEach(function (r) { r.onclick = function () { S.i = +r.dataset.i; S.p = S.trangs[0]; S.cuChon = -1; S.dangSo = null; veTat(); }; });
   }
   function veTab() {
@@ -963,7 +994,7 @@
         return '<div class="cs-dat-o" data-p="' + p + '"><b>TRANG ' + p + '</b>' + (trangCua(e, p) ? '<img alt="" data-anh>' : '<div class="rong">Em chưa nộp trang ' + p + '</div>') + '</div>';
       }).join('') + '</div></div>' +
       '<div class="cs-pop-day"><span>' + (thieu.length ? '⚠ Còn thiếu / máy chặn trang ' + thieu.join(', ') + ' — ĐẠT vẫn ghi cho các trang đã nộp. ' : '') +
-        (sai ? '⚠ Còn ' + sai + ' dấu ✕ sai trên ảnh. ' : '') + 'Bấm CHỤP ẢNH ĐẠT ⇒ 1 ảnh ghép mọi trang vào clipboard VÀ ghi bài em là ĐẠT.</span>' +
+        (sai ? '⚠ Còn ' + sai + ' dấu ✕ sai trên ảnh. ' : '') + 'Bấm CHỤP ẢNH ĐẠT ⇒ 1 ảnh ghép mọi trang vào clipboard (Ctrl+V vào Zalo).</span>' +
         '<button class="cs-nut phu" data-dong>ĐÓNG</button><button class="cs-nut dat" id="csChupDat">' + ico('chup', 16, 2.2) + 'CHỤP ẢNH ĐẠT</button></div></div>';
     pop.hidden = false;
     pop.querySelectorAll('[data-dong]').forEach(function (b) { b.onclick = dongPop; });
@@ -971,22 +1002,43 @@
       var img = o.querySelector('[data-anh]'); if (!img) return;
       dungTrang(e, +o.dataset.p, -1, { rong: 900 }).then(function (c) { try { img.src = c.toDataURL('image/jpeg', 0.88); } catch (er) { img.alt = 'Ảnh chưa xuất được (CORS)'; } });
     });
+    // v1.436.0 — pop-up này CHỈ chụp ảnh (ghi ĐẠT đã làm ở nút ĐẠT)
     $('#csChupDat').onclick = function () {
-      var nut = this; nut.disabled = true; nut.textContent = 'Đang chụp + ghi ĐẠT…';
-      var chep = chepAnh(ghepDat(e).then(function (c) { return canvasBlob(c, 'image/png'); })).then(function () { return true; }, function () { return false; });
-      var ghi = hamDuyet().then(function (f) { return f({ id: [S.lop, S.bai, S.bt, e.ma].join('__'), tat: true, tt: 'dat' }); })
-        .then(function () { return S.docLai(e); }).then(function (d) { if (d) e.doc = d; return true; });
-      Promise.all([chep, ghi]).then(function (kq) {
-        toast((kq[0] ? '✓ Ảnh ĐẠT đã vào clipboard (Ctrl+V vào Zalo)' : '⚠ Chưa chép được ảnh') + ' · ✓ Đã ghi ĐẠT cho ' + e.ten);
-        dongPop(); veTat(); if (S.onDoi) S.onDoi();
-      }, function (er) {
-        nut.disabled = false; nut.innerHTML = ico('chup', 16, 2.2) + 'CHỤP ẢNH ĐẠT';
-        chep.then(function (ok) { toast((ok ? 'Ảnh đã vào clipboard nhưng ' : '') + 'chưa ghi ĐẠT được: ' + ((er && er.message) || er)); });
+      var nut = this; nut.disabled = true; nut.textContent = 'Đang chụp…';
+      chepAnh(ghepDat(e).then(function (c) { return canvasBlob(c, 'image/png'); })).then(function () {
+        toast('✓ Ảnh ĐẠT đã vào clipboard (Ctrl+V vào Zalo)'); dongPop();
+      }, function () {
+        nut.disabled = false; nut.innerHTML = ico('chup', 16, 2.2) + 'CHỤP ẢNH ĐẠT'; toast('⚠ Chưa chép được ảnh');
       });
     };
   }
+  // ⭐ v1.436.0 — nút ĐẠT: chưa ĐẠT ⇒ ghi ĐẠT cả bài ngay · đã ĐẠT ⇒ hỏi BỎ ĐẠT (máy chủ duyetSach tt:'bo' trả về như trước khi ĐẠT)
+  function bamDat() {
+    var e = emHien(); if (!e || S.dangGhiDat) return;
+    if (ttEm(e).lop !== 'xong') return void ghiDat(e, 'dat');
+    var pop = $('#csPop');
+    pop.innerHTML = '<div class="cs-hoi"><b>Bỏ ĐẠT bài của ' + chu(e.ten) + '?</b><p>Bài sẽ trở về CHỜ CHẤM như trước khi thầy bấm ĐẠT. Dấu chấm và nét vẽ vẫn giữ nguyên.</p>' +
+      '<div class="cs-hang"><button class="cs-nut phu" data-dong>HUỶ</button><button class="cs-nut bo" id="csBoDat">BỎ ĐẠT</button></div></div>';
+    pop.hidden = false;
+    pop.querySelectorAll('[data-dong]').forEach(function (b) { b.onclick = dongPop; });
+    $('#csBoDat').onclick = function () { dongPop(); ghiDat(e, 'bo'); };
+    $('#csBoDat').focus();
+  }
+  function ghiDat(e, tt) {
+    S.dangGhiDat = true; capNut();
+    hamDuyet().then(function (f) { return f({ id: [S.lop, S.bai, S.bt, e.ma].join('__'), tat: true, tt: tt }); })
+      .then(function () { return S.docLai(e); })
+      .then(function (d) {
+        if (d) e.doc = d;
+        S.dangGhiDat = false; veTat(); if (S.onDoi) S.onDoi();
+        toast(tt === 'dat' ? '✓ Đã ghi ĐẠT cho ' + e.ten : 'Đã bỏ ĐẠT — ' + e.ten + ' trở về CHỜ CHẤM');
+      }, function (er) {
+        S.dangGhiDat = false; capNut();
+        toast((tt === 'dat' ? 'Chưa ghi ĐẠT được: ' : 'Chưa bỏ ĐẠT được: ') + ((er && er.message) || er));
+      });
+  }
 
-  /* cfg = { tieuDe, lop, bai, bt, trangs:[32,33,34], sach:'NTTA', em:[{ten, ma, doc}], docLai(em) ⇒ Promise<doc>, onDoi(), onDong() } */
+  /* cfg = { tieuDe, lop, bai, bt, trangs:[32,33,34], sach:'NTTA', em:[{ten, ma, doc, av (url ảnh, v1.435.0)}], docLai(em) ⇒ Promise<doc>, onDoi(), onDong() } */
   function mo(cfg) {
     if (!$('#csNen')) dungKhung();
     S = Object.assign({ i: 0, p: cfg.trangs[0], cu: 'but', mau: MAU[0], dapAn: {}, dapAnXong: false, cuChon: -1, hien: null, keDau: null, tam: null, chuot: null, nhay: null, dangSo: null, choNhay: null }, cfg);
@@ -994,8 +1046,11 @@
     S.i = dau >= 0 ? dau : 0;
     $('#csTieu').textContent = 'CHẤM BÀI SÁCH · ' + S.tieuDe;
     $('#csPhu').textContent = 'Trang ' + S.trangs.join(', ');
-    $('#csNen').hidden = false;
-    document.documentElement.classList.add('cs-mo');
+    // v1.434.0 — cfg.nhung = khung chứa ⇒ trang chấm nằm TRONG khung đó (không phủ màn hình, không khoá cuộn trang)
+    var n = $('#csNen');
+    if (cfg.nhung) { n.classList.add('nhung'); cfg.nhung.appendChild(n); }
+    else { n.classList.remove('nhung'); if (n.parentNode !== document.body) document.body.appendChild(n); document.documentElement.classList.add('cs-mo'); }
+    n.hidden = false;
     // nạp sẵn font chung (chữ vẽ trên canvas không tự chờ font) rồi vẽ lại ảnh
     if (document.fonts && document.fonts.load) Promise.all(['500', '600', '800'].map(function (w) { return document.fonts.load(w + ' 20px Montserrat', 'Aạ'); }))
       .then(function () { if (S && S.anh) veCv(); }, function () { /* không tải được font ⇒ dùng font dự phòng trong FONT */ });
@@ -1003,5 +1058,5 @@
     veTat();
     docDapAn(S.sach || 'NTTA', S.trangs).then(function (d) { if (!S) return; S.dapAn = d; S.dapAnXong = true; veDs(); veTab(); veAi(); if (S.anh) veCv(); });
   }
-  window.ChamSach = { mo: mo, dong: dong };
+  window.ChamSach = { mo: mo, dong: dong, nhung: nhung, coLop: coLop };
 })();
