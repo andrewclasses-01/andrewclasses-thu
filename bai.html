@@ -879,6 +879,37 @@ button{font:inherit; color:inherit; background:none; border:none; cursor:pointer
 .sl-hoi button[data-xn="1"]{background:#16a34a; border-color:#16a34a; color:#fff}
 .video-khung{position:relative; border-radius:14px; overflow:hidden; background:#000; padding-top:56.25%}
 .video-khung iframe{position:absolute; inset:0; width:100%; height:100%; border:0}
+/* ⭐ v1.440.0 — khối VIDEO myDocument (phim vẽ bằng code). ⭐ v1.441.0 (thầy chốt mẫu v1 kiểu A, 28/10/2026 —
+   `D:\OTHERS\CLAUDE\myLesson - thiet ke o video\mau-v1.html`): bìa = ảnh poster tối nhẹ + MỘT nút phát teal ở giữa;
+   dưới khung = thanh đã xem không chữ (chép khuôn `.vk-timeline` thanh đoạn bài giảng), xem hết ⇒ xanh lá. */
+.the-vdoc .game-cover{background:#0b1220 center/cover no-repeat; justify-content:center}
+.the-vdoc .game-cover::before{content:''; position:absolute; inset:0; background:rgba(11,18,32,.28); transition:background .15s}
+.the-vdoc .game-cover:hover::before{background:rgba(11,18,32,.18)}
+.vd-phat{position:relative; width:68px; height:68px; border-radius:50%; border:0; padding:0; cursor:pointer; display:grid; place-items:center;
+  background:var(--accent); box-shadow:0 6px 20px rgba(14,124,110,.45); transition:transform .12s ease, filter .15s ease}
+.vd-phat svg{width:26px; height:26px; margin-left:4px; fill:#fff}
+.the-vdoc .game-cover:hover .vd-phat{transform:scale(1.07); filter:brightness(1.08)}
+.the-vdoc .game-cover:active .vd-phat{transform:scale(.96)}
+/* ⭐ v1.443.0 — bấm phát: vòng xoay teal giữa khung, khung phim GIẤU (opacity 0) tới khi trình phát báo `play` (tiếng đã nạp,
+   khung đầu đã vẽ) ⇒ hình và tiếng hiện cùng lúc */
+.the-vdoc .game iframe{transition:opacity .25s}
+.the-vdoc .game.dang-nap iframe{opacity:0}
+.vd-nap{position:absolute; inset:0; display:grid; place-items:center; pointer-events:none; z-index:2}
+.vd-nap i{width:48px; height:48px; border-radius:50%; border:4px solid rgba(14,124,110,.22); border-top-color:var(--accent); animation:vd-xoay .8s linear infinite}
+@keyframes vd-xoay{to{transform:rotate(360deg)}}
+/* ⭐ v1.443.0 — "YÊU CẦU XEM": thẻ đứng SAU video chưa xem hết thu thành dòng chờ (khuôn `.card.st-cho` của STAGE) */
+.card.st-cho.vd-khoa .st-cho-tt{background:#FFF4E5; color:#B45309; border-color:#F8DDB5}
+.vd-xem{position:relative; height:34px; margin:-8px 8px 0}
+.vd-ray{position:absolute; left:0; right:0; top:62%; transform:translateY(-50%); height:8px; border-radius:4px; background:#E5EAE8; overflow:hidden}
+.vd-ray b{position:absolute; left:0; top:0; bottom:0; width:0; background:var(--accent); border-radius:4px; transition:width .4s}
+.vd-tro{position:absolute; top:62%; left:0; width:15px; height:15px; border-radius:50%; background:var(--accent); border:3px solid #fff;
+  transform:translate(-50%,-50%); box-shadow:0 0 0 2px var(--accent), 0 2px 6px rgba(22,35,42,.4); transition:left .4s}
+.vd-bong{position:absolute; bottom:calc(38% + 10px); left:0; transform:translateX(-50%); font-size:9.5px; line-height:1.2; font-weight:800; color:#fff;
+  background:var(--accent); padding:1px 5px; border-radius:5px; white-space:nowrap; font-variant-numeric:tabular-nums; transition:left .4s}
+.vd-bong::after{content:''; position:absolute; left:50%; top:100%; transform:translateX(-50%); border:3px solid transparent; border-top-color:var(--accent)}
+.vd-xem.xong .vd-ray b, .vd-xem.xong .vd-tro, .vd-xem.xong .vd-bong{background:var(--m-la, #16a34a)}
+.vd-xem.xong .vd-tro{box-shadow:0 0 0 2px var(--m-la, #16a34a), 0 2px 6px rgba(22,35,42,.4)}
+.vd-xem.xong .vd-bong::after{border-top-color:var(--m-la, #16a34a)}
 /* Khối loại chưa biết — không biến mất câm */
 .card.khoi-la .than{color:var(--muted); font-weight:600; font-size:13px}
 @media (max-width:640px){
@@ -4651,6 +4682,7 @@ function veKhoiSlide(k, so){
 }
 
 function veKhoiVideo(k, so){
+  if (k.src) return veKhoiVideoDoc(k, so);   // v1.440.0 — video myDocument
   var sec = document.createElement('section');
   sec.className = 'card';
   sec.innerHTML =
@@ -4658,6 +4690,163 @@ function veKhoiVideo(k, so){
       '<div class="ch-chu"><h2>' + chuAnToan(k.ten || 'VIDEO') + '</h2><div class="ch-ma">VIDEO</div></div></div>' +
     '<div class="than mot"><div class="video-khung"><iframe src="https://drive.google.com/file/d/' + encodeURIComponent(k.driveId) + '/preview" allow="autoplay; fullscreen" allowfullscreen></iframe></div></div>';
   return sec;
+}
+/* ⭐⭐ v1.440.0 (thầy chốt 28/10/2026) — KHỐI VIDEO myDocument (app myLesson v2.192.0 ô VIDEO: `{loai:'video', src, doc, giay, o}`).
+   Khung 16:9 nhúng trang phim (`?nhung=1`); trang phim báo `progress {t,tong}` mỗi giây đang phát + `pause`/`ended`
+   (hợp đồng myDocument `_chung/nhung.js`). ĐẾM GIỜ XEM THẬT: chỉ cộng khúc [t trước, t] khi t tăng ĐỀU (0 < Δ ≤ 2,5 giây,
+   và đồng hồ thật cũng trôi ≥ 0,6·Δ) ⇒ tua tới KHÔNG tính. Khúc cộng vào `DOAN_XONG['vo<o>']` ⇒ đi chung tài liệu
+   `lessonVideoTienDo/<mã em>__<bài>` trường `khuc` (luật sẵn có, khoá map tự do) — KHÔNG kho mới, không luật mới.
+   XONG = khúc đã xem phủ ≥ tổng − 2 giây (`daXongVideoDoc`). ⚠️ Tin từ khung phim do trình duyệt em gửi ⇒ chỉ dùng cho tiến độ. */
+function khoaVideoDoc(k){ return 'vo' + ((k.o != null && +k.o >= 0) ? +k.o : (k._vt || 0)); }
+function tongVideoDoc(k){ return +(VIDEO_DOC_TONG[khoaVideoDoc(k)] || k.giay || 0); }
+function daXemVideoDoc(k){
+  var tong = tongVideoDoc(k), xem = 0;
+  (DOAN_XONG[khoaVideoDoc(k)] || []).forEach(function(r){ var s = Math.max(0, r[0]), e = tong ? Math.min(tong, r[1]) : r[1]; if (e > s) xem += e - s; });
+  return { xem: xem, tong: tong };
+}
+function daXongVideoDoc(k){ var d = daXemVideoDoc(k); return d.tong > 0 && d.xem >= d.tong - 2; }
+var VIDEO_DOC_TONG = {};   // {khoá: giây} — tổng thật do khung phim báo (danh mục có thể làm tròn)
+var VIDEO_DOC_HEN = null;
+function veKhoiVideoDoc(k, so){
+  var sec = document.createElement('section');
+  sec.className = 'card the-slide the-vdoc';
+  if (k.yc) sec.setAttribute('data-vdyc', khoaVideoDoc(k));   // v1.443.0 — "Yêu cầu xem": khoá thẻ bên dưới tới khi xem hết
+  var khoa = khoaVideoDoc(k);
+  var dongDuoi = ghepKhongLap([A.maLesson(BAI), 'VIDEO']).join(' • ');
+  sec.innerHTML =
+    '<div class="card-head"><span class="step">' + so + '</span>' +
+      '<div class="ch-chu"><h2>' + chuAnToan(k.ten || 'VIDEO') + '</h2><div class="ch-ma">' + chuAnToan(dongDuoi) + '</div></div>' +
+      '<div class="card-nut">' +
+        '<button class="ic-nut den" title="Tắt bớt ánh sáng xung quanh">' + IC_DEN + '</button>' +
+        '<button type="button" class="ic-nut phong-nut" title="Toàn màn hình" aria-label="Toàn màn hình">' + IC_PHONG + '</button>' +
+      '</div></div>' +
+    '<div class="than mot">' +
+      '<div class="game la-slide">' +
+        // v1.441.0 (thầy chốt mẫu v1 kiểu A, 28/10) — bìa chỉ còn NÚT PHÁT teal giữa ảnh bìa (bỏ READY, tên phim, tên em, lớp)
+        '<div class="game-cover"><button type="button" class="vd-phat" aria-label="Phát video">' +
+          '<svg viewBox="0 0 24 24"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5z"/></svg></button></div>' +
+      '</div>' +
+      // v1.441.0 — thanh đã xem KHÔNG chữ: khuôn thanh đoạn bài giảng (ray + chấm tròn + bong bóng %), xem hết ⇒ xanh lá ✓ 100%
+      '<div class="vd-xem" title="Phần em đã xem thật (tua không tính) — xem hết video để hoàn thành"><div class="vd-ray"><b></b></div>' +
+        '<span class="vd-tro"></span><span class="vd-bong">0%</span></div>' +
+    '</div>';
+  if (k.poster && /^https:\/\//i.test(k.poster)) sec.querySelector('.game-cover').style.backgroundImage = 'url("' + String(k.poster).replace(/"/g, '') + '")';
+  var khung = sec.querySelector('.game');
+  var tien = sec.querySelector('.vd-xem');
+  function veTien(){
+    var d = daXemVideoDoc(k), xong = daXongVideoDoc(k);
+    var pct = xong ? 100 : (d.tong ? Math.min(99, Math.round(d.xem / d.tong * 100)) : 0);   // chưa xong thì không hiện 100%
+    tien.classList.toggle('xong', xong);
+    tien.querySelector('.vd-ray b').style.width = pct + '%';
+    tien.querySelector('.vd-tro').style.left = pct + '%';
+    var bong = tien.querySelector('.vd-bong');
+    bong.style.left = pct + '%';
+    bong.textContent = xong ? '✓ 100%' : pct + '%';
+    if (xong && k.yc && sec.isConnected && !sec._daMo) { sec._daMo = true; khoaSauVideoDoc(); }   // v1.443.0 — mở các thẻ đang chờ (một lần)
+  }
+  veTien();
+  var f = null, tTruoc = -1, lucTruoc = 0, daGuiPhat = false, khoaDaGui;
+  /* ⭐ v1.442.0 (thầy chốt 28/10/2026) — KHOÁ TUA: chưa xem hết thì KHÔNG cho tua tới đoạn chưa xem — kéo lên thì chấm đang phát
+     nhảy về MỐC XEM LIỀN XA NHẤT (cuối khúc đã xem liền từ giây 0). Xem hết ⇒ tua tuỳ ý. Trình phát myDocument (myStudio v0.12.3)
+     tự chặn khi nhận {lenh:'khoaTua', t}; trình phát cũ không hiểu lệnh ⇒ lưới an toàn: thấy t nhảy quá mốc thì gửi `seek` về mốc. */
+  function mocLienVideoDoc(){
+    var ds = DOAN_XONG[khoa] || [];
+    return (ds.length && ds[0][0] <= 1.5) ? ds[0][1] : 0;
+  }
+  function guiKhoaTua(){
+    if (!f) return;
+    var t = daXongVideoDoc(k) ? null : Math.round(mocLienVideoDoc() * 10) / 10;
+    if (t === khoaDaGui) return;
+    khoaDaGui = t;
+    try { f.contentWindow.postMessage({ lenh: 'khoaTua', t: t }, '*'); } catch (e) {}
+  }
+  function keoVeMoc(t){   // lưới an toàn cho trình phát cũ
+    if (daXongVideoDoc(k)) return false;
+    var moc = mocLienVideoDoc();
+    if (t <= moc + 2.5) return false;
+    try { f.contentWindow.postMessage({ lenh: 'seek', t: moc }, '*'); } catch (e) {}
+    tTruoc = moc; lucTruoc = Date.now();
+    return true;
+  }
+  function nhan(e){
+    if (!f || e.source !== f.contentWindow) return;
+    var m = e.data; if (!m || m.nguon !== 'myDocument') return;
+    var bay = Date.now();
+    if (m.tong > 0) VIDEO_DOC_TONG[khoa] = +m.tong;
+    // trình phát báo SẴN SÀNG ⇒ bảo nó PHÁT (em vừa bấm READY = cú bấm thật, trình duyệt cho phát tiếng). Gửi lúc `load`
+    // thì sớm quá: trang phim còn đang nạp hình, lệnh play bị bỏ (đo 28/10).
+    if (m.su_kien === 'ready') { khoaDaGui = undefined; guiKhoaTua(); }   // v1.442.0 — khoá tua trước khi phát
+    if (m.su_kien === 'ready' && !daGuiPhat) { daGuiPhat = true; try { f.contentWindow.postMessage({ lenh: 'play' }, '*'); } catch (e2) {} return; }
+    if (m.su_kien === 'play') { khung.classList.remove('dang-nap'); var vn = khung.querySelector('.vd-nap'); if (vn) vn.remove(); }   // v1.443.0
+    if (m.su_kien === 'play' && isFinite(+m.t)) { keoVeMoc(+m.t); return; }   // dừng ⇒ kéo ⇒ phát (trình phát cũ)
+    if (m.su_kien === 'progress' && isFinite(+m.t)) {
+      var t = +m.t, dt = t - tTruoc, dthat = (bay - lucTruoc) / 1000;
+      if (keoVeMoc(t)) return;
+      if (tTruoc >= 0 && dt > 0 && dt <= 2.5 && dthat >= dt * 0.6) {
+        congKhucXemKhoa(khoa, tTruoc, t); luuDoanXongKhoa(); TIEN_DO_FS_BAN = true; veTien();
+      }
+      tTruoc = t; lucTruoc = bay;
+      guiKhoaTua();   // mốc lớn dần theo phần xem liền
+    } else if (m.su_kien === 'ended') {
+      var tg = tongVideoDoc(k);
+      if (tTruoc >= 0 && tg > tTruoc && tg - tTruoc <= 2.5) { congKhucXemKhoa(khoa, tTruoc, tg); luuDoanXongKhoa(); TIEN_DO_FS_BAN = true; }
+      tTruoc = -1; veTien(); guiKhoaTua(); dayTienDoFs();
+    } else if (m.su_kien === 'pause') {   // giữ mốc dừng ⇒ phát tiếp không hụt khúc; dừng rồi tua thì khúc kế > 2,5 giây ⇒ không tính
+      tTruoc = isFinite(+m.t) ? +m.t : -1; lucTruoc = bay; dayTienDoFs();
+    }
+  }
+  sec.querySelector('.game-cover').onclick = function(){
+    if (khung.querySelector('iframe')) return;
+    f = document.createElement('iframe');
+    f.setAttribute('allow', 'fullscreen; autoplay');
+    f.setAttribute('allowfullscreen', '');
+    f.src = k.src;
+    tTruoc = 0; lucTruoc = Date.now();   // phim bắt đầu từ 0 ⇒ giây đầu (trước nhịp progress đầu tiên) cũng tính
+    khung.insertBefore(f, khung.firstChild);
+    khung.classList.add('dang-nap');   // v1.443.0 — giấu khung + vòng xoay tới khi phát thật
+    var nap = document.createElement('div'); nap.className = 'vd-nap'; nap.innerHTML = '<i></i>'; khung.appendChild(nap);
+    window.addEventListener('message', nhan);
+    if (!VIDEO_DOC_HEN) VIDEO_DOC_HEN = setInterval(function(){ dayTienDoFs(); }, 20000);
+    var bia = khung.querySelector('.game-cover');
+    bia.classList.add('dang-mo');
+    setTimeout(function(){ bia.remove(); }, 340);
+  };
+  var nutDen = sec.querySelector('.ic-nut.den');
+  nutDen.onclick = function(){ if (khung.classList.contains('sang')) tatDen(); else batDen(khung, nutDen, k); };
+  sec.querySelector('.phong-nut').onclick = function(){
+    if (!khung.querySelector('iframe')) sec.querySelector('.game-cover').onclick();
+    if (khung.requestFullscreen) khung.requestFullscreen()['catch'](function(){});
+    else if (khung.webkitRequestFullscreen) khung.webkitRequestFullscreen();
+  };
+  return sec;
+}
+/* ⭐⭐ v1.443.0 (thầy chốt 28/10/2026) — "YÊU CẦU XEM" (app: chuột phải ô video, mặc định tích ⇒ khối `yc:1`): mọi thẻ bài tập
+   đứng SAU video đó (theo thứ tự trên trang, cả bài STAGE) bị GIẤU, thay bằng một dòng chờ "XEM HẾT VIDEO ĐỂ MỞ". Xem hết
+   (`daXongVideoDoc`) ⇒ mở ngay, không tải lại. Gọi lại được bất cứ lúc nào (gỡ dòng chờ cũ rồi xét lại từ đầu). */
+function khoaSauVideoDoc(){
+  var hop = $('#cacPhan'); if (!hop) return;
+  hop.querySelectorAll('.card.vd-khoa').forEach(function(x){ x.remove(); });
+  var the = [].slice.call(hop.querySelectorAll('section.card'));
+  var khoa = false;
+  the.forEach(function(c){
+    if (khoa) {
+      c.hidden = true;
+      var h2 = c.querySelector('.card-head h2, .st-cho-act');
+      var cho = document.createElement('section');
+      cho.className = 'card st-cho vd-khoa';
+      cho.innerHTML = '<div class="st-cho-hang"><span class="st-nhan">' + chuAnToan((c.querySelector('.step') || {}).textContent ? 'BÀI ' + c.querySelector('.step').textContent : 'BÀI TẬP') + '</span>' +
+        '<div class="st-cho-chu"><span class="st-cho-act">' + chuAnToan(h2 ? h2.textContent : '') + '</span></div>' +
+        '<span class="st-cho-tt">' + IC_KHOA_KHOA + 'Xem hết video để mở</span></div>';
+      c.parentNode.insertBefore(cho, c);
+      return;
+    }
+    c.hidden = false;
+    var kh = c.getAttribute('data-vdyc');
+    if (kh) {
+      var k = KHOI.filter(function(x){ return x.loai === 'video' && x.src && khoaVideoDoc(x) === kh; })[0];
+      if (k && !daXongVideoDoc(k)) khoa = true;
+    }
+  });
 }
 /* Khối loại chưa biết — hiện thẻ xám thay vì biến mất câm (bẫy cũ: khối bị lọc, không ai biết). */
 function veKhoiLa(k, so){
@@ -5287,9 +5476,10 @@ function veCacPhan(){
   hop.innerHTML = '';
   /* ⭐ v1.155.0 — worksheet KHÔNG còn là thẻ trong dãy: lên thanh đầu trang (`veWsThanh`). */
   if (LA_KHOA) { veCacPhanKhoa(hop); veOHan(); veWsThanh(hop); return; }
-  if (LA_STAGE) { veCacPhanStage(hop); veOHan(); veWsThanh(hop); canhLb(); return; }
+  if (LA_STAGE) { veCacPhanStage(hop); khoaSauVideoDoc(); veOHan(); veWsThanh(hop); canhLb(); return; }   // v1.443.0 khoá sau video
   var so = 0;
   KHOI.forEach(function(k){ if (k.loai !== 'ws') hop.appendChild(veKhoi(k, ++so)); });
+  khoaSauVideoDoc();   // v1.443.0
   veWsThanh(hop);
   canhLb();
   capNhatDaiNhac();   // v1.334.0
@@ -8455,7 +8645,7 @@ A.napDuLieu().then(function(dl){
   KHOI = (BAI.khoi || []).map(function(k, i){ k._vt = i; return k; }).filter(function(k){
     if (k.loai === 'nghe' || k.loai === 'audio') return !!k.maNghe;
     if (k.loai === 'ws') return !!String(k.ten || '').trim();
-    if (k.loai === 'video') return !!k.driveId;
+    if (k.loai === 'video') return !!k.driveId || /^https:\/\//i.test(String(k.src || ''));   // v1.440.0 +video myDocument
     if (k.loai === 'slide') return /^https:\/\//i.test(String(k.slide || ''));   // v1.323.0
     return k.loai === 'act' && !!k.ma;
   }).map(function(k){
@@ -8463,6 +8653,9 @@ A.napDuLieu().then(function(dl){
       return { loai: 'ws', ten: k.ten || '', tep: String(k.tep || ''), soTrang: Math.max(1, +k.soTrang || 1),
                o: (k.o != null && +k.o >= 0) ? +k.o : k._vt, han: k.han || '' };
     }
+    if (k.loai === 'video' && k.src) return { loai: 'video', ten: k.ten || 'VIDEO', src: String(k.src), doc: String(k.doc || ''),
+                                           giay: +k.giay || 0, poster: String(k.poster || ''), _vt: k._vt, yc: !!k.yc,   // v1.443.0 yc
+                                           o: (k.o != null && +k.o >= 0) ? +k.o : k._vt, han: k.han || '' };   // v1.440.0
     if (k.loai === 'video') return { loai: 'video', ten: k.ten || '', driveId: String(k.driveId || '') };
     if (k.loai === 'slide') return { loai: 'slide', ten: k.ten || 'SLIDE', slide: String(k.slide), nop: !!k.nop,
                                      o: (k.o != null && +k.o >= 0) ? +k.o : k._vt, han: k.han || '' };
@@ -8491,6 +8684,8 @@ A.napDuLieu().then(function(dl){
   if (LA_KHOA && BAI.kieu === 'GIOITHIEU') trongKhoa = true;   // v1.340.0 — bài GIỚI THIỆU không có trang bài: về trang khóa (thẻ mở phim)
   if ((!KHOI.length && !LA_KHOA) || trongKhoa) { veTrangLop(); return; }
   if (LA_KHOA) { napDoanXongKhoa(); napViTriKhoa(); }   // v1.97.0 thêm vị trí
+  var coVideoDoc = KHOI.some(function(k){ return k.loai === 'video' && k.src; });   // v1.440.0
+  if (coVideoDoc && !LA_KHOA) napDoanXongKhoa();
 
   /* ⭐ v1.76.0 — bài STAGE: chỉ bật khi thật sự có act mang hạn riêng, không thì
      cứ vẽ như bài thường (bài STAGE thầy chưa cài chặng cũng mở bình thường). */
@@ -8511,7 +8706,8 @@ A.napDuLieu().then(function(dl){
   /* ⭐ v1.96.0 — bài KHÓA: đọc luôn bản tiến độ CHUNG trên Firestore (1 lượt), đi
      song song với điểm act; gộp vào `DOAN_XONG` xong mới vẽ để % và khoá dây
      chuyền đúng ngay từ khung hình đầu, không nhảy số. */
-  var choTienDoKhoa = LA_KHOA ? Promise.all([napTienDoFs(), napXacNhanFs(), napSachFs()]).then(function(k){ return k[0]; }) : Promise.resolve(false);
+  var choTienDoKhoa = LA_KHOA ? Promise.all([napTienDoFs(), napXacNhanFs(), napSachFs()]).then(function(k){ return k[0]; })
+                    : coVideoDoc ? napTienDoFs() : Promise.resolve(false);   // v1.440.0 — video myDocument: đọc khúc đã xem
   // ⭐ v1.116.0 — bài có khối NGHE (DICTS) thì đọc luôn tiến độ nghe, SONG SONG
   // với điểm act/tiến độ video — 1 lượt lúc mở bài, đúng luật 8️⃣.
   var coNghe = KHOI.some(function(k){ return k.loai === 'audio'; });
