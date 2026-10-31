@@ -38,7 +38,7 @@
   }
   function hhTag(ma, bac, co, lop) { return '<span class="xh-hh' + (lop ? ' ' + lop : '') + '" data-hh="' + esc(ma) + '" data-bac="' + esc(bac || '') + '" data-co="' + (co || 40) + '"></span>'; }
   // 26/10 SUẤT: Đồng/Bạc/Vàng theo điểm (Vàng từ 800) · Bạch kim → Huyền thoại theo SUẤT (thứ hạng toàn trường + điểm sàn), cờ s do máy chủ ghi.
-  var SUAT_MAC = [{ t: 'ht', n: 1, san: 2000 }, { t: 'ct', n: 2, san: 1600 }, { t: 'kc', n: 3, san: 1400 }, { t: 'bk', n: 6, san: 1100 }];
+  var SUAT_MAC = [{ t: 'ht', n: 2, san: 1800 }, { t: 'ct', n: 2, san: 1600 }, { t: 'kc', n: 3, san: 1400 }, { t: 'bk', n: 6, san: 1100 }];
   function suatCua(M) { return (M && Array.isArray(M.suat) && M.suat.length) ? M.suat : SUAT_MAC; }
   function laSuat(s) { return s === 'ht' || s === 'ct' || s === 'kc' || s === 'bk'; }
   // { ht:'1', ct:'2–3', kc:'4–6', bk:'7–12' } + tổng suất
@@ -51,11 +51,14 @@
     if (s === true) s = 'ht';
     if (laSuat(s)) return { ma: s, bac: '', ten: HANG[s].ten, suat: true };
     var ma = 'dong'; THU_TU.forEach(function (k) { if (d >= HANG[k].tu) ma = k; });
-    var bac = ['III', 'II', 'I'][Math.min(2, Math.floor((d - HANG[ma].tu) / 100))];
-    var san = ma === 'vang' && d >= 1000 ? 1000 : Math.floor(d / 100) * 100;
-    var len = ma === 'vang' && d >= 1000 ? null : san + 100;   // Vàng I: lên tiếp phải giành SUẤT
-    return { ma: ma, bac: bac, ten: HANG[ma].ten + ' ' + bac, trongBac: len ? d - san : null, len: len };
+    var i = Math.min(2, Math.floor((d - HANG[ma].tu) / 100)), bac = ['III', 'II', 'I'][i];
+    // 31/10 bậc I kéo tới hạng kế (Bạc I = 500→800, rộng 300) ⇒ thanh đi trọn bậc, không về 0 mỗi 100 điểm. Vàng I: lên tiếp phải giành SUẤT
+    var san = HANG[ma].tu + i * 100, tiep = THU_TU[THU_TU.indexOf(ma) + 1];
+    var len = i < 2 ? san + 100 : tiep ? HANG[tiep].tu : null;
+    return { ma: ma, bac: bac, ten: HANG[ma].ten + ' ' + bac, trongBac: len ? d - san : null, len: len, rong: len ? len - san : null };
   }
+  // 🛡 khiên (máy chủ sanBac): vượt mốc 100 nào thì 3 trận thua tới không tụt dưới mốc đó; từ 1000 mốc là 1000
+  function mocKhien(d) { return d >= 1000 ? 1000 : Math.floor((d || 0) / 100) * 100; }
   // chuỗi hạng trên trận ('vang:II' · 'kc:' · 'xl:3')
   function hien(s) {
     var p = String(s || '').split(':');
@@ -178,7 +181,7 @@
     };
   }
 
-  window.XH = { HANG: HANG, THU_TU: THU_TU, hh: hh, veHH: veHH, hhTag: hhTag, hangTu: hangTu, SUAT_MAC: SUAT_MAC, suatCua: suatCua, laSuat: laSuat, viTriSuat: viTriSuat, hien: hien, av: av, esc: esc, chuTat: chuTat,
+  window.XH = { HANG: HANG, THU_TU: THU_TU, hh: hh, veHH: veHH, hhTag: hhTag, hangTu: hangTu, mocKhien: mocKhien, SUAT_MAC: SUAT_MAC, suatCua: suatCua, laSuat: laSuat, viTriSuat: viTriSuat, hien: hien, av: av, esc: esc, chuTat: chuTat,
     dongHo: dongHo, conLai: conLai, ngayGio: ngayGio, phutChu: phutChu, muaHienTai: muaHienTai, ttMua: ttMua, gioVangNay: gioVangNay,
     telexTu: telexTu, BanPhim: BanPhim };
 })();
